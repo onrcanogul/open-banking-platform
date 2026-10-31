@@ -1,6 +1,7 @@
 package dev.obe.mockyos.api.controller;
 
 import dev.obe.contract.listener.EventNotificationRequest;
+import dev.obe.mockyos.application.OutageSwitch;
 import dev.obe.mockyos.application.ReceivedEventStore;
 import java.util.List;
 import org.slf4j.Logger;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -18,13 +20,23 @@ class EventListenerController {
     private static final Logger log = LoggerFactory.getLogger(EventListenerController.class);
 
     private final ReceivedEventStore store;
+    private final OutageSwitch outage;
 
-    EventListenerController(ReceivedEventStore store) {
+    EventListenerController(ReceivedEventStore store, OutageSwitch outage) {
         this.store = store;
+        this.outage = outage;
+    }
+
+    @PostMapping("/internal/outage")
+    void setOutage(@RequestParam boolean down) {
+        outage.set(down);
     }
 
     @PostMapping("/olay-dinleme")
     ResponseEntity<Void> receive(@RequestBody EventNotificationRequest request) {
+        if (outage.isDown()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        }
         if (request.olaylar().size() > EventNotificationRequest.MAX_EVENTS) {
             return ResponseEntity.badRequest().build();
         }

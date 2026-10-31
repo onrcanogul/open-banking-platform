@@ -4,6 +4,21 @@ server:
 spring:
   application:
     name: event-dispatcher
+  config:
+    # The working directory is the repo root in an IDE and the module with Maven
+    import: "optional:file:.env[.properties],optional:file:../.env[.properties]"
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+    username: ${ORACLE_DISPATCHER_USER}
+    password: ${ORACLE_DISPATCHER_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      # Timestamp columns have no zone and always hold UTC
+      hibernate.jdbc.time_zone: UTC
+      hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
   kafka:
     bootstrap-servers: localhost:9092
     listener:
@@ -22,6 +37,13 @@ spring:
 obe:
   hhs-code: "9999"
   redelivery-interval: PT5S
+  delivery:
+    scheduler-enabled: true
+    poll-interval: PT1S
+    claim-size: 500
+    # Claimed rows return to the queue after this long if the sender died
+    claim-lease: PT30S
+    concurrent-calls: 8
   subscription-service-url: http://localhost:8081
   # The standard reads these addresses from the YOS definition. Stands in until a real client exists.
   listener-urls:

@@ -19,12 +19,18 @@ public class DeliveryPlanner {
      * @param events        events in the order they were read
      * @param subscriptions subscriptions by YOS code, without YOSes that have none
      */
-    public List<DeliveryBatch> plan(List<NotificationEvent> events, Map<String, SubscriptionView> subscriptions) {
+    public List<NotificationEvent> subscribed(List<NotificationEvent> events,
+            Map<String, SubscriptionView> subscriptions) {
+        return events.stream()
+                .filter(event -> isSubscribed(event, subscriptions.get(event.yosCode())))
+                .toList();
+    }
+
+    /** Groups events by YOS in the given order and splits each group into calls the standard allows. */
+    public List<DeliveryBatch> batches(List<NotificationEvent> events) {
         Map<String, List<NotificationEvent>> byYos = new LinkedHashMap<>();
         for (NotificationEvent event : events) {
-            if (isSubscribed(event, subscriptions.get(event.yosCode()))) {
-                byYos.computeIfAbsent(event.yosCode(), code -> new ArrayList<>()).add(event);
-            }
+            byYos.computeIfAbsent(event.yosCode(), code -> new ArrayList<>()).add(event);
         }
         List<DeliveryBatch> batches = new ArrayList<>();
         byYos.forEach((yosCode, yosEvents) -> batches.addAll(split(yosCode, yosEvents)));

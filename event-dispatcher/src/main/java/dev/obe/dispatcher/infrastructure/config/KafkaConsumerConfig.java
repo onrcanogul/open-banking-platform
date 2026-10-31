@@ -13,7 +13,8 @@ class KafkaConsumerConfig {
 
     /**
      * The default handler gives up after a few instant retries and discards the records, which loses
-     * events during a short outage. Retrying without limit holds the partition instead.
+     * events during a short outage. Retrying without limit holds the partition instead. Only this
+     * service's own dependencies can fail here, since calls to a YOS happen after intake.
      */
     @Bean
     CommonErrorHandler consumerErrorHandler(@Value("${obe.redelivery-interval}") Duration interval) {

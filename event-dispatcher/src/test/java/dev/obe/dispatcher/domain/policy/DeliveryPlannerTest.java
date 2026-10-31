@@ -32,14 +32,14 @@ class DeliveryPlannerTest {
     void keepsSubscribedEvent() {
         NotificationEvent event = paymentEvent(YOS_A);
 
-        List<DeliveryBatch> batches = planner.plan(List.of(event), Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
+        List<DeliveryBatch> batches = plan(List.of(event), Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
 
         assertThat(batches).containsExactly(new DeliveryBatch(YOS_A, List.of(event)));
     }
 
     @Test
     void dropsEventTypeTheYosDidNotSubscribeTo() {
-        List<DeliveryBatch> batches = planner.plan(List.of(paymentEvent(YOS_A)),
+        List<DeliveryBatch> batches = plan(List.of(paymentEvent(YOS_A)),
                 Map.of(YOS_A, subscription(YOS_A, BALANCE)));
 
         assertThat(batches).isEmpty();
@@ -49,7 +49,7 @@ class DeliveryPlannerTest {
     void matchesEventAndResourceTypeTogether() {
         NotificationEvent sameResourceOtherEvent = event(YOS_A, EventType.AYRIK_GKD_BASARILI, ResourceType.ODEME_EMRI);
 
-        List<DeliveryBatch> batches = planner.plan(List.of(sameResourceOtherEvent),
+        List<DeliveryBatch> batches = plan(List.of(sameResourceOtherEvent),
                 Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
 
         assertThat(batches).isEmpty();
@@ -57,7 +57,7 @@ class DeliveryPlannerTest {
 
     @Test
     void dropsEventsOfYosWithoutSubscription() {
-        assertThat(planner.plan(List.of(paymentEvent(YOS_A)), Map.of())).isEmpty();
+        assertThat(plan(List.of(paymentEvent(YOS_A)), Map.of())).isEmpty();
     }
 
     @Test
@@ -65,7 +65,7 @@ class DeliveryPlannerTest {
         NotificationEvent eventA = paymentEvent(YOS_A);
         NotificationEvent eventB = paymentEvent(YOS_B);
 
-        List<DeliveryBatch> batches = planner.plan(List.of(eventA, eventB),
+        List<DeliveryBatch> batches = plan(List.of(eventA, eventB),
                 Map.of(YOS_A, subscription(YOS_A, PAYMENT), YOS_B, subscription(YOS_B, PAYMENT)));
 
         assertThat(batches).containsExactlyInAnyOrder(
@@ -77,7 +77,7 @@ class DeliveryPlannerTest {
     void splitsIntoCallsOfAtMostOneHundredEvents() {
         List<NotificationEvent> events = paymentEvents(YOS_A, 250);
 
-        List<DeliveryBatch> batches = planner.plan(events, Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
+        List<DeliveryBatch> batches = plan(events, Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
 
         assertThat(batches).extracting(batch -> batch.events().size()).containsExactly(100, 100, 50);
     }
@@ -86,7 +86,7 @@ class DeliveryPlannerTest {
     void exactlyOneHundredEventsFitInOneCall() {
         List<NotificationEvent> events = paymentEvents(YOS_A, 100);
 
-        List<DeliveryBatch> batches = planner.plan(events, Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
+        List<DeliveryBatch> batches = plan(events, Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
 
         assertThat(batches).extracting(batch -> batch.events().size()).containsExactly(100);
     }
@@ -95,7 +95,7 @@ class DeliveryPlannerTest {
     void keepsReadOrderAcrossCalls() {
         List<NotificationEvent> events = paymentEvents(YOS_A, 150);
 
-        List<DeliveryBatch> batches = planner.plan(events, Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
+        List<DeliveryBatch> batches = plan(events, Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
 
         assertThat(batches.stream().flatMap(batch -> batch.events().stream()).toList()).isEqualTo(events);
     }
@@ -106,14 +106,18 @@ class DeliveryPlannerTest {
         List<NotificationEvent> mixed = new ArrayList<>(payments);
         mixed.add(50, event(YOS_A, EventType.KAYNAK_GUNCELLENDI, ResourceType.BAKIYE));
 
-        List<DeliveryBatch> batches = planner.plan(mixed, Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
+        List<DeliveryBatch> batches = plan(mixed, Map.of(YOS_A, subscription(YOS_A, PAYMENT)));
 
         assertThat(batches).extracting(batch -> batch.events().size()).containsExactly(100);
     }
 
     @Test
     void returnsNothingForNoEvents() {
-        assertThat(planner.plan(List.of(), Map.of())).isEmpty();
+        assertThat(plan(List.of(), Map.of())).isEmpty();
+    }
+
+    private List<DeliveryBatch> plan(List<NotificationEvent> events, Map<String, SubscriptionView> subscriptions) {
+        return planner.batches(planner.subscribed(events, subscriptions));
     }
 
     private SubscriptionView subscription(String yosCode, SubscribedType... types) {

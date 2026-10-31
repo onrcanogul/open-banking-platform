@@ -2,7 +2,6 @@ package dev.obe.dispatcher.application.service;
 
 import dev.obe.contract.event.NotificationEvent;
 import dev.obe.contract.subscription.SubscriptionView;
-import dev.obe.dispatcher.application.port.out.EventListenerClient;
 import dev.obe.dispatcher.application.port.out.SubscriptionClient;
 import dev.obe.dispatcher.domain.policy.DeliveryPlanner;
 import java.util.HashMap;
@@ -10,22 +9,22 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
+/** Turns consumed events into delivery records. Sending happens later, so a YOS cannot hold back Kafka. */
 @Service
-public class EventDispatchService {
+public class EventIntakeService {
 
     private final SubscriptionClient subscriptionClient;
-    private final EventListenerClient listenerClient;
     private final DeliveryPlanner planner;
+    private final DeliveryStore store;
 
-    public EventDispatchService(SubscriptionClient subscriptionClient, EventListenerClient listenerClient,
-            DeliveryPlanner planner) {
+    public EventIntakeService(SubscriptionClient subscriptionClient, DeliveryPlanner planner, DeliveryStore store) {
         this.subscriptionClient = subscriptionClient;
-        this.listenerClient = listenerClient;
         this.planner = planner;
+        this.store = store;
     }
 
-    public void dispatch(List<NotificationEvent> events) {
-        planner.plan(events, subscriptionsOf(events)).forEach(listenerClient::deliver);
+    public void accept(List<NotificationEvent> events) {
+        store.saveNew(planner.subscribed(events, subscriptionsOf(events)));
     }
 
     // One lookup per YOS, however many events it has in this read

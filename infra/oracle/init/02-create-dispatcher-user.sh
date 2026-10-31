@@ -1,0 +1,11 @@
+#!/bin/bash
+# Runs on first database start. Each service owns a schema so it cannot touch another's tables.
+set -euo pipefail
+
+sqlplus -s -L / as sysdba <<EOF
+WHENEVER SQLERROR EXIT FAILURE
+ALTER SESSION SET CONTAINER = FREEPDB1;
+CREATE USER ${ORACLE_DISPATCHER_USER} IDENTIFIED BY "${ORACLE_DISPATCHER_PASSWORD}" QUOTA UNLIMITED ON USERS;
+GRANT CREATE SESSION, CREATE TABLE TO ${ORACLE_DISPATCHER_USER};
+EXIT
+EOF

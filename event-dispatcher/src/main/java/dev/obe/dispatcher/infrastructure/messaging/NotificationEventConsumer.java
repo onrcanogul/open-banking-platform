@@ -2,7 +2,7 @@ package dev.obe.dispatcher.infrastructure.messaging;
 
 import dev.obe.contract.event.NotificationEvent;
 import dev.obe.contract.event.NotificationTopics;
-import dev.obe.dispatcher.application.service.EventDispatchService;
+import dev.obe.dispatcher.application.service.EventIntakeService;
 import java.util.List;
 import java.util.Objects;
 import org.slf4j.Logger;
@@ -16,10 +16,10 @@ class NotificationEventConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationEventConsumer.class);
 
-    private final EventDispatchService service;
+    private final EventIntakeService intake;
 
-    NotificationEventConsumer(EventDispatchService service) {
-        this.service = service;
+    NotificationEventConsumer(EventIntakeService intake) {
+        this.intake = intake;
     }
 
     @KafkaListener(topics = NotificationTopics.EVENTS)
@@ -28,6 +28,6 @@ class NotificationEventConsumer {
         if (events.size() != messages.size()) {
             log.error("Skipped {} unreadable messages", messages.size() - events.size());
         }
-        service.dispatch(events);
+        intake.accept(events);
     }
 }

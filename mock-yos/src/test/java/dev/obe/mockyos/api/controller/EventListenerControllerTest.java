@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.obe.mockyos.application.OutageSwitch;
 import dev.obe.mockyos.application.ReceivedEventStore;
 import java.util.Collections;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,9 +29,13 @@ class EventListenerControllerTest {
     @Autowired
     private ReceivedEventStore store;
 
+    @Autowired
+    private OutageSwitch outage;
+
     @BeforeEach
     void clean() {
         store.clear();
+        outage.set(false);
     }
 
     @Test
@@ -40,6 +45,16 @@ class EventListenerControllerTest {
 
         assertThat(store.all()).hasSize(1);
         assertThat(store.all().get(0).olaylar().get(0).kaynakNo()).isEqualTo("ODM-1");
+    }
+
+    @Test
+    void refusesEverythingDuringOutage() throws Exception {
+        mvc.perform(post("/internal/outage").param("down", "true")).andExpect(status().isOk());
+
+        mvc.perform(post("/olay-dinleme").contentType(MediaType.APPLICATION_JSON).content(body(1)))
+                .andExpect(status().isServiceUnavailable());
+
+        assertThat(store.all()).isEmpty();
     }
 
     @Test
