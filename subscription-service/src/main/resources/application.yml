@@ -11,6 +11,28 @@ spring:
     url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
     username: ${ORACLE_APP_USER}
     password: ${ORACLE_APP_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      # Timestamp columns have no zone and always hold UTC
+      hibernate.jdbc.time_zone: UTC
+      hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+
+obe:
+  hhs-code: "9999"
+  # Sample participants served by ConfiguredYosDirectory
+  yos-directory:
+    "8001":
+      roles: [OBH, HBH]
+      listener-api-provided: true
+    "8002":
+      roles: [HBH]
+      listener-api-provided: true
+    "8003":
+      roles: [OBH, HBH]
+      listener-api-provided: false
 
 management:
   endpoints:

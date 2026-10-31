@@ -5,7 +5,7 @@ Bu tasarım kamuya açık standarda ve genel bankacılık pratiğine dayanır. H
 gerçek mimarisini anlatmaz.
 
 Olay Bildirim kaynağı: [ÖHVPS v2.0.1, Bölüm 12](https://ohvps.github.io/v2.0.1/contents/olay-bildirim.html).
-Aşağıdaki alan adları sayfanın otomatik özetinden alındı. Kodlamadan önce orijinal sayfadan kontrol edilecek.
+OAS alan adları, başlıklar ve hata formatı sayfaların ham metninden doğrulandı.
 
 ## Çalışma düzeni
 
@@ -58,7 +58,27 @@ Standarttan gelen ve tasarımı belirleyen kurallar:
 - YÖS başına HHS'de tek abonelik vardır. Tekrarında `TR.OHVPS.Business.EventSubscriptionAlreadyExists` döner.
 
 Spesifikasyonda iç tutarsızlık var. `iletilemeyen-olaylar` yolu ve `/sistem-olay-dinleme` ucunun sahibi
-sayfada iki farklı şekilde geçiyor. Kod yazarken orijinal metne bakıp seçimimizi burada kaydedeceğiz.
+sayfada iki farklı şekilde geçiyor. Bu uçları kodlarken seçimimizi burada kaydedeceğiz.
+
+Spesifikasyonun açık bıraktığı yerlerde aldığımız kararlar:
+
+- Listedeki olay ve kaynak değerleri geçerli ama çift tabloda yoksa `InvalidContent` döner.
+  Liste dışı değerlerde standardın istediği `EventSubscriptionNotFound` kullanılır.
+- Abonelik bulunamazsa veya başka YÖS'e aitse `404 TR.OHVPS.Resource.NotFound` döner.
+- Başlıktaki kodlar gövdedeki `katilimciBlg` ile eşleşmezse `InvalidContent` döner.
+- `DELETE` kaydı fiziksel olarak siler, böylece YÖS yeniden abone olabilir.
+- `X-TPP-Code` şimdilik doğrulanmadan kabul edilir. Gerçek kimlik doğrulama SSO aşamasında eklenecek.
+- `X-Request-ID` henüz okunmuyor, M5'teki korelasyon adımında eklenecek.
+
+Servislerin paket yapısı, bağımlılıklar yalnızca içeriye doğru akacak şekilde:
+
+| Paket | Sorumluluk |
+|---|---|
+| `api` | Controller, DTO, mapper, HTTP hata çevirisi |
+| `application` | Kullanım senaryoları, command ve result tipleri, dış dünya için port arayüzleri |
+| `domain` | Entity, enum, iş politikaları, repository arayüzü |
+| `infrastructure` | Port implementasyonları ve yapılandırma |
+| `common` | Katmanlar arası paylaşılan hata tipleri |
 
 | Aşama | Çıktı | Sen yaz | Kavra |
 |---|---|---|---|
