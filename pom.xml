@@ -21,6 +21,8 @@
         <module>event-contract</module>
         <module>subscription-service</module>
         <module>mock-hhs</module>
+        <module>mock-yos</module>
+        <module>event-dispatcher</module>
     </modules>
 
     <properties>
