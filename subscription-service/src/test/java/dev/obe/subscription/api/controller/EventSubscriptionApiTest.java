@@ -186,6 +186,22 @@ class EventSubscriptionApiTest {
     }
 
     @Test
+    void internalEndpointReturnsSubscribedTypes() throws Exception {
+        createSubscription(FULL_YOS);
+
+        mvc.perform(get("/internal/subscriptions/" + FULL_YOS))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.yosCode").value(FULL_YOS))
+                .andExpect(jsonPath("$.types[0].eventType").value("KAYNAK_GUNCELLENDI"))
+                .andExpect(jsonPath("$.types[0].resourceType").value("BAKIYE"));
+    }
+
+    @Test
+    void internalEndpointReturnsNotFoundWithoutSubscription() throws Exception {
+        mvc.perform(get("/internal/subscriptions/" + FULL_YOS)).andExpect(status().isNotFound());
+    }
+
+    @Test
     void updateReplacesAllTypes() throws Exception {
         String subscriptionNo = createSubscription(FULL_YOS);
 

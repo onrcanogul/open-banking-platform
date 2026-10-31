@@ -1,5 +1,7 @@
 package dev.obe.subscription.api.mapper;
 
+import dev.obe.contract.subscription.SubscribedType;
+import dev.obe.contract.subscription.SubscriptionView;
 import dev.obe.subscription.api.dto.ParticipantInfo;
 import dev.obe.subscription.api.dto.SubscriptionTypeDto;
 import dev.obe.subscription.api.dto.request.CreateSubscriptionRequest;
@@ -35,6 +37,13 @@ public class SubscriptionApiMapper {
                 .toList();
         return new SubscriptionResponse(result.subscriptionNo(), result.createdAt(), result.updatedAt(), participant,
                 types);
+    }
+
+    public SubscriptionView toView(SubscriptionResult result) {
+        List<SubscribedType> types = result.types().stream()
+                .map(type -> new SubscribedType(type.eventType(), type.resourceType()))
+                .toList();
+        return new SubscriptionView(result.participant().yosCode(), types);
     }
 
     private Participant toParticipant(ParticipantInfo info) {

@@ -58,6 +58,13 @@ public class EventSubscriptionService {
         return SubscriptionResult.from(subscription, hhsCode);
     }
 
+    @Transactional(readOnly = true)
+    public SubscriptionResult getByYosCode(String yosCode) {
+        EventSubscription subscription = repository.findByYosCode(yosCode)
+                .orElseThrow(() -> new OhvpsException(OhvpsError.RESOURCE_NOT_FOUND));
+        return SubscriptionResult.from(subscription, hhsCode);
+    }
+
     @Transactional
     public SubscriptionResult update(UpdateSubscriptionCommand command) {
         requireSameParticipant(command.caller(), command.declared());
