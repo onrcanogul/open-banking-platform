@@ -79,9 +79,15 @@ Olay akışı için aldığımız kararlar:
 - Olay tipleri ve mesaj şekli `event-contract` modülünde durur.
 - Her servisin kendi Oracle kullanıcısı vardır, servisler birbirinin tablosuna erişemez.
 - Dispatcher aboneliği `subscription-service`'in iç ucundan OpenFeign ile okur.
-- Dispatcher hata alınca olayı atmaz, partition'ı tutarak süresiz yeniden dener. Bu geçici bir çözümdür:
-  Tek bir YÖS'ün arızası diğerlerini de bekletir. M4'te teslimat kayıtları bunu çözecek.
+- Dispatcher Kafka'dan aldığını teslimat kaydı olarak yazar, gönderimi zamanlayıcı yapar. Böylece kapalı bir
+  YÖS Kafka'yı ve diğer YÖS'leri bekletmez. Kafka tarafında süresiz yeniden deneme yalnızca dispatcher'ın kendi
+  bağımlılıkları (abonelik servisi, Oracle) içindir.
 - YÖS abone olmadan önce oluşan olaylar ona gönderilmez.
+- `1 Dakika 3 kez` kuralı, `30 Dakika - 3 Deneme` ile aynı şekilde yorumlandı: 3 deneme, 1 dakikaya yayılır.
+- `iletilemeyen-olaylar` için tablodaki `/olay-abonelik/{olayAbonelikNo}/iletilemeyen-olaylar` yolu seçildi.
+- Veri yoksa `iletilemeyen-olaylar` `200` ve boş `olaylar` listesi döner. Standart "boş gövde" diyor, ama
+  `katilimciBlg` zorunlu olduğu için bu yorum seçildi.
+- Aynı kaynak için yeni iletilemeyen olay gelince eskisi `SUPERSEDED` olur.
 
 Servislerin paket yapısı, bağımlılıklar yalnızca içeriye doğru akacak şekilde:
 

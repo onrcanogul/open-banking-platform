@@ -34,6 +34,8 @@ import org.testcontainers.oracle.OracleContainer;
 @Testcontainers
 class DeliveryStoreTest {
 
+    private static final Instant NOW = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+
     @Container
     @ServiceConnection
     static OracleContainer oracle = new OracleContainer("gvenzl/oracle-free:23.26.3-slim-faststart")
@@ -122,6 +124,59 @@ class DeliveryStoreTest {
             release.countDown();
             pool.shutdown();
         }
+    }
+
+    @Test
+    void listsUndeliveredEventsOfOneYosOldestFirst() {
+        NotificationEvent newer = balanceEvent("8001", NOW.minusSeconds(10));
+        NotificationEvent older = balanceEvent("8001", NOW.minusSeconds(20));
+        NotificationEvent otherYos = balanceEvent("8002", NOW.minusSeconds(15));
+        makeUndelivered(newer, older, otherYos);
+
+        assertThat(store.findUndelivered("8001", NOW.minusSeconds(60), NOW, 1))
+                .extracting(NotificationEvent::eventNo)
+                .containsExactly(older.eventNo(), newer.eventNo());
+    }
+
+    @Test
+    void leavesOutEventsOutsideTheTimeRange() {
+        NotificationEvent tooOld = balanceEvent("8001", NOW.minusSeconds(100));
+        NotificationEvent inRange = balanceEvent("8001", NOW.minusSeconds(10));
+        makeUndelivered(tooOld, inRange);
+
+        assertThat(store.findUndelivered("8001", NOW.minusSeconds(60), NOW, 1))
+                .extracting(NotificationEvent::eventNo)
+                .containsExactly(inRange.eventNo());
+    }
+
+    @Test
+    void leavesOutEventsStillBeingRetried() {
+        store.saveNew(List.of(balanceEvent("8001", NOW.minusSeconds(10))));
+
+        assertThat(store.findUndelivered("8001", NOW.minusSeconds(60), NOW, 1)).isEmpty();
+    }
+
+    @Test
+    void splitsUndeliveredEventsIntoPagesOfOneHundred() {
+        NotificationEvent[] events = IntStream.range(0, 120)
+                .mapToObj(i -> balanceEvent("8001", NOW.minusSeconds(200 - i)))
+                .toArray(NotificationEvent[]::new);
+        makeUndelivered(events);
+
+        assertThat(store.findUndelivered("8001", NOW.minusSeconds(300), NOW, 1)).hasSize(100);
+        assertThat(store.findUndelivered("8001", NOW.minusSeconds(300), NOW, 2)).hasSize(20);
+    }
+
+    /** Balance events have no retries, so one failure is enough. */
+    private void makeUndelivered(NotificationEvent... events) {
+        List<NotificationEvent> list = List.of(events);
+        store.saveNew(list);
+        store.recordFailure(list.stream().map(NotificationEvent::eventNo).toList(), "503");
+    }
+
+    private NotificationEvent balanceEvent(String yosCode, Instant occurredAt) {
+        return new NotificationEvent(UUID.randomUUID().toString(), yosCode, EventType.KAYNAK_GUNCELLENDI,
+                ResourceType.BAKIYE, UUID.randomUUID().toString(), occurredAt);
     }
 
     private void awaitUninterruptibly(CountDownLatch latch) {

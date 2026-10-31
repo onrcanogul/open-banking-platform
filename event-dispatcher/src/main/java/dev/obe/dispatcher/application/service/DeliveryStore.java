@@ -1,6 +1,7 @@
 package dev.obe.dispatcher.application.service;
 
 import dev.obe.contract.event.NotificationEvent;
+import dev.obe.contract.listener.EventNotification;
 import dev.obe.dispatcher.domain.model.DeliveryStatus;
 import dev.obe.dispatcher.domain.model.EventDelivery;
 import dev.obe.dispatcher.domain.repository.EventDeliveryRepository;
@@ -78,6 +79,15 @@ public class DeliveryStore {
                         delivery.getResourceType(), delivery.getResourceNo(), delivery.getEventNo());
             }
         }
+    }
+
+    /** Returns one page of undelivered events, oldest first. Pages start from 1. */
+    @Transactional(readOnly = true)
+    public List<NotificationEvent> findUndelivered(String yosCode, Instant from, Instant to, int page) {
+        return repository.findUndelivered(yosCode, from, to, PageRequest.of(page - 1, EventNotification.MAX_EVENTS))
+                .stream()
+                .map(EventDelivery::toNotificationEvent)
+                .toList();
     }
 
     // Trimmed to the column's millisecond precision so comparisons match what is stored

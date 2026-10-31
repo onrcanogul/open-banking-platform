@@ -38,6 +38,17 @@ public interface EventDeliveryRepository extends JpaRepository<EventDelivery, St
             """)
     List<EventDelivery> lockDue(@Param("eventNos") List<String> eventNos, @Param("now") Instant now);
 
+    @Query("""
+            select d from EventDelivery d
+            where d.status = dev.obe.dispatcher.domain.model.DeliveryStatus.UNDELIVERED
+              and d.yosCode = :yosCode
+              and d.occurredAt >= :from
+              and d.occurredAt <= :to
+            order by d.occurredAt, d.eventNo
+            """)
+    List<EventDelivery> findUndelivered(@Param("yosCode") String yosCode, @Param("from") Instant from,
+            @Param("to") Instant to, Pageable page);
+
     /** The standard allows one undelivered record per YOS, resource and event type. */
     @Modifying
     @Query("""

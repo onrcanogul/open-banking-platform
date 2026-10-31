@@ -5,8 +5,11 @@ import dev.obe.contract.event.ResourceType;
 import java.time.Instant;
 import java.util.List;
 
-/** Body of POST /olay-dinleme. Field names are the JSON names set by the standard. */
-public record EventNotificationRequest(Participant katilimciBlg, List<Event> olaylar) {
+/**
+ * The standard's Olaylar object: the body of POST /olay-dinleme and of the undelivered events
+ * response. Field names are the JSON names set by the standard.
+ */
+public record EventNotification(Participant katilimciBlg, List<Event> olaylar) {
 
     /** The most events the standard allows in one call. */
     public static final int MAX_EVENTS = 100;

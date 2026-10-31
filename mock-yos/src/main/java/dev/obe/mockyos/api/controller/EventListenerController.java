@@ -1,6 +1,6 @@
 package dev.obe.mockyos.api.controller;
 
-import dev.obe.contract.listener.EventNotificationRequest;
+import dev.obe.contract.listener.EventNotification;
 import dev.obe.mockyos.application.OutageSwitch;
 import dev.obe.mockyos.application.ReceivedEventStore;
 import java.util.List;
@@ -33,11 +33,11 @@ class EventListenerController {
     }
 
     @PostMapping("/olay-dinleme")
-    ResponseEntity<Void> receive(@RequestBody EventNotificationRequest request) {
+    ResponseEntity<Void> receive(@RequestBody EventNotification request) {
         if (outage.isDown()) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         }
-        if (request.olaylar().size() > EventNotificationRequest.MAX_EVENTS) {
+        if (request.olaylar().size() > EventNotification.MAX_EVENTS) {
             return ResponseEntity.badRequest().build();
         }
         store.add(request);
@@ -47,7 +47,7 @@ class EventListenerController {
     }
 
     @GetMapping("/internal/received")
-    List<EventNotificationRequest> received() {
+    List<EventNotification> received() {
         return store.all();
     }
 }

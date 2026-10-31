@@ -1,5 +1,7 @@
 package dev.obe.subscription.api.mapper;
 
+import dev.obe.contract.event.NotificationEvent;
+import dev.obe.contract.listener.EventNotification;
 import dev.obe.contract.subscription.SubscribedType;
 import dev.obe.contract.subscription.SubscriptionView;
 import dev.obe.subscription.api.dto.ParticipantInfo;
@@ -44,6 +46,15 @@ public class SubscriptionApiMapper {
                 .map(type -> new SubscribedType(type.eventType(), type.resourceType()))
                 .toList();
         return new SubscriptionView(result.participant().yosCode(), types);
+    }
+
+    public EventNotification toNotification(Participant participant, List<NotificationEvent> events) {
+        List<EventNotification.Event> items = events.stream()
+                .map(event -> new EventNotification.Event(event.eventNo(), event.occurredAt(), event.eventType(),
+                        event.resourceType(), event.resourceNo()))
+                .toList();
+        return new EventNotification(
+                new EventNotification.Participant(participant.hhsCode(), participant.yosCode()), items);
     }
 
     private Participant toParticipant(ParticipantInfo info) {

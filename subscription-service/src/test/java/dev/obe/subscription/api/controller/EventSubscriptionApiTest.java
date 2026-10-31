@@ -1,6 +1,12 @@
 package dev.obe.subscription.api.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,8 +15,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import dev.obe.contract.event.EventType;
+import dev.obe.contract.event.NotificationEvent;
+import dev.obe.contract.event.ResourceType;
+import dev.obe.subscription.application.port.out.UndeliveredEventsClient;
+import dev.obe.subscription.domain.policy.UndeliveredWindow;
 import dev.obe.subscription.domain.repository.EventSubscriptionRepository;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -19,12 +32,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.testcontainers.junit.jupiter.Container;
@@ -57,6 +72,9 @@ class EventSubscriptionApiTest {
 
     @Autowired
     private EventSubscriptionRepository repository;
+
+    @MockitoBean
+    private UndeliveredEventsClient undeliveredEvents;
 
     @BeforeEach
     void clean() {
@@ -202,6 +220,59 @@ class EventSubscriptionApiTest {
     }
 
     @Test
+    void listsUndeliveredEventsInTheStandardsShape() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+        NotificationEvent event = new NotificationEvent("event-1", FULL_YOS, EventType.KAYNAK_GUNCELLENDI,
+                ResourceType.BAKIYE, "resource-1", Instant.parse("2026-10-31T10:00:00Z"));
+        when(undeliveredEvents.find(eq(FULL_YOS), any(), eq(1))).thenReturn(List.of(event));
+
+        mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.katilimciBlg.hhsKod").value(HHS))
+                .andExpect(jsonPath("$.katilimciBlg.yosKod").value(FULL_YOS))
+                .andExpect(jsonPath("$.olaylar[0].olayNo").value("event-1"))
+                .andExpect(jsonPath("$.olaylar[0].olayTipi").value("KAYNAK_GUNCELLENDI"))
+                .andExpect(jsonPath("$.olaylar[0].kaynakTipi").value("BAKIYE"))
+                .andExpect(jsonPath("$.olaylar[0].kaynakNo").value("resource-1"));
+    }
+
+    @Test
+    void passesRequestedPageAndLimitsTheRange() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+        when(undeliveredEvents.find(any(), any(), anyInt())).thenReturn(List.of());
+
+        mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS)
+                        .param("syfNo", "2")
+                        .param("olyZmnBslTrh", "2020-01-08T16:42:00+03:00"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.olaylar").isEmpty());
+
+        ArgumentCaptor<UndeliveredWindow> window = ArgumentCaptor.forClass(UndeliveredWindow.class);
+        verify(undeliveredEvents).find(eq(FULL_YOS), window.capture(), eq(2));
+        assertThat(window.getValue().from()).isAfter(Instant.now().minus(3, ChronoUnit.DAYS));
+    }
+
+    @Test
+    void doesNotListUndeliveredEventsOfAnotherYos() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+
+        mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), HBH_ONLY_YOS))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value(NOT_FOUND));
+
+        verifyNoInteractions(undeliveredEvents);
+    }
+
+    @Test
+    void rejectsPageNumberBelowOne() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+
+        mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS).param("syfNo", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value(INVALID_FORMAT));
+    }
+
+    @Test
     void updateReplacesAllTypes() throws Exception {
         String subscriptionNo = createSubscription(FULL_YOS);
 
@@ -230,6 +301,10 @@ class EventSubscriptionApiTest {
         mvc.perform(withHeaders(delete("/olay-abonelik/" + subscriptionNo), HBH_ONLY_YOS))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value(NOT_FOUND));
+    }
+
+    private String undeliveredPath(String subscriptionNo) {
+        return "/olay-abonelik/" + subscriptionNo + "/iletilemeyen-olaylar";
     }
 
     private String createSubscription(String yos) throws Exception {

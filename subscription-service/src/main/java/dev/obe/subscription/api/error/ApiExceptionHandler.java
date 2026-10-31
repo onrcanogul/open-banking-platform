@@ -10,6 +10,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 class ApiExceptionHandler {
@@ -31,7 +33,8 @@ class ApiExceptionHandler {
         return response(OhvpsError.INVALID_FORMAT, OhvpsError.INVALID_FORMAT.message(), fields, request);
     }
 
-    @ExceptionHandler({MissingRequestHeaderException.class, HttpMessageNotReadableException.class})
+    @ExceptionHandler({MissingRequestHeaderException.class, HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class, HandlerMethodValidationException.class})
     ResponseEntity<ErrorResponse> handleUnreadableRequest(Exception ex, HttpServletRequest request) {
         return response(OhvpsError.INVALID_FORMAT, OhvpsError.INVALID_FORMAT.message(), List.of(), request);
     }

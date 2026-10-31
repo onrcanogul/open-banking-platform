@@ -1,6 +1,6 @@
 package dev.obe.mockyos.application;
 
-import dev.obe.contract.listener.EventNotificationRequest;
+import dev.obe.contract.listener.EventNotification;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.springframework.stereotype.Component;
@@ -9,13 +9,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class ReceivedEventStore {
 
-    private final List<EventNotificationRequest> received = new CopyOnWriteArrayList<>();
+    private final List<EventNotification> received = new CopyOnWriteArrayList<>();
 
-    public void add(EventNotificationRequest request) {
+    public void add(EventNotification request) {
         received.add(request);
     }
 
-    public List<EventNotificationRequest> all() {
+    public List<EventNotification> all() {
         return List.copyOf(received);
     }
 

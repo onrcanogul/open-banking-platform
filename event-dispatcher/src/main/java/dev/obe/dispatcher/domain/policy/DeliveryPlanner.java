@@ -1,7 +1,7 @@
 package dev.obe.dispatcher.domain.policy;
 
 import dev.obe.contract.event.NotificationEvent;
-import dev.obe.contract.listener.EventNotificationRequest;
+import dev.obe.contract.listener.EventNotification;
 import dev.obe.contract.subscription.SubscribedType;
 import dev.obe.contract.subscription.SubscriptionView;
 import dev.obe.dispatcher.domain.model.DeliveryBatch;
@@ -44,8 +44,8 @@ public class DeliveryPlanner {
 
     private List<DeliveryBatch> split(String yosCode, List<NotificationEvent> events) {
         List<DeliveryBatch> batches = new ArrayList<>();
-        for (int start = 0; start < events.size(); start += EventNotificationRequest.MAX_EVENTS) {
-            int end = Math.min(start + EventNotificationRequest.MAX_EVENTS, events.size());
+        for (int start = 0; start < events.size(); start += EventNotification.MAX_EVENTS) {
+            int end = Math.min(start + EventNotification.MAX_EVENTS, events.size());
             batches.add(new DeliveryBatch(yosCode, List.copyOf(events.subList(start, end))));
         }
         return batches;

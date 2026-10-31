@@ -1,7 +1,7 @@
 package dev.obe.dispatcher.infrastructure.listener;
 
 import dev.obe.contract.event.NotificationEvent;
-import dev.obe.contract.listener.EventNotificationRequest;
+import dev.obe.contract.listener.EventNotification;
 import dev.obe.dispatcher.application.port.out.EventListenerClient;
 import dev.obe.dispatcher.domain.model.DeliveryBatch;
 import dev.obe.dispatcher.infrastructure.config.DispatcherProperties;
@@ -49,14 +49,14 @@ class RestEventListenerClient implements EventListenerClient {
         }
     }
 
-    private EventNotificationRequest toRequest(DeliveryBatch batch) {
-        List<EventNotificationRequest.Event> events = batch.events().stream().map(this::toEvent).toList();
-        return new EventNotificationRequest(
-                new EventNotificationRequest.Participant(properties.hhsCode(), batch.yosCode()), events);
+    private EventNotification toRequest(DeliveryBatch batch) {
+        List<EventNotification.Event> events = batch.events().stream().map(this::toEvent).toList();
+        return new EventNotification(
+                new EventNotification.Participant(properties.hhsCode(), batch.yosCode()), events);
     }
 
-    private EventNotificationRequest.Event toEvent(NotificationEvent event) {
-        return new EventNotificationRequest.Event(event.eventNo(), event.occurredAt(), event.eventType(),
+    private EventNotification.Event toEvent(NotificationEvent event) {
+        return new EventNotification.Event(event.eventNo(), event.occurredAt(), event.eventType(),
                 event.resourceType(), event.resourceNo());
     }
 }

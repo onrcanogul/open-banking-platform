@@ -1,17 +1,21 @@
 package dev.obe.subscription.application.service;
 
+import dev.obe.contract.event.NotificationEvent;
 import dev.obe.subscription.application.command.CreateSubscriptionCommand;
 import dev.obe.subscription.application.command.Participant;
 import dev.obe.subscription.application.command.UpdateSubscriptionCommand;
+import dev.obe.subscription.application.port.out.UndeliveredEventsClient;
 import dev.obe.subscription.application.result.SubscriptionResult;
 import dev.obe.subscription.common.error.OhvpsError;
 import dev.obe.subscription.common.error.OhvpsException;
 import dev.obe.subscription.common.persistence.ConstraintViolations;
 import dev.obe.subscription.domain.model.EventSubscription;
 import dev.obe.subscription.domain.model.SubscriptionType;
+import dev.obe.subscription.domain.policy.UndeliveredWindow;
 import dev.obe.subscription.domain.repository.EventSubscriptionRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,12 +27,14 @@ public class EventSubscriptionService {
 
     private final EventSubscriptionRepository repository;
     private final SubscriptionTypeResolver typeResolver;
+    private final UndeliveredEventsClient undeliveredEvents;
     private final String hhsCode;
 
     public EventSubscriptionService(EventSubscriptionRepository repository, SubscriptionTypeResolver typeResolver,
-            @Value("${obe.hhs-code}") String hhsCode) {
+            UndeliveredEventsClient undeliveredEvents, @Value("${obe.hhs-code}") String hhsCode) {
         this.repository = repository;
         this.typeResolver = typeResolver;
+        this.undeliveredEvents = undeliveredEvents;
         this.hhsCode = hhsCode;
     }
 
@@ -81,6 +87,14 @@ public class EventSubscriptionService {
     public void delete(Participant caller, String subscriptionNo) {
         requireThisHhs(caller);
         repository.delete(findOwned(caller.yosCode(), subscriptionNo));
+    }
+
+    /** Not transactional, so that no database connection is held during the remote call. */
+    public List<NotificationEvent> listUndelivered(Participant caller, String subscriptionNo, Instant from, Instant to,
+            int page) {
+        requireThisHhs(caller);
+        findOwned(caller.yosCode(), subscriptionNo);
+        return undeliveredEvents.find(caller.yosCode(), UndeliveredWindow.of(now(), from, to), page);
     }
 
     // Answers 404 for another YOS's subscription so its existence is not revealed
