@@ -19,6 +19,23 @@ spring:
       # Timestamp columns have no zone and always hold UTC
       hibernate.jdbc.time_zone: UTC
       hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      properties:
+        # Consumers read the contract type, not a class name from this service
+        spring.json.add.type.headers: false
+        # Fails within the publisher's wait so a broker outage cannot hold the transaction open
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+
+obe:
+  outbox:
+    relay-enabled: true
+    poll-interval: PT1S
+    batch-size: 100
 
 management:
   endpoints:

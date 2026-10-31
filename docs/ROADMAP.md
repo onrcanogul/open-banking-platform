@@ -32,7 +32,7 @@ OAS alan adları, başlıklar ve hata formatı sayfaların ham metninden doğrul
 ```text
 mock-hhs ──(aynı transaction)──> Oracle: iş verisi + outbox
                                    │
-                          outbox-relay
+                  outbox-relay (mock-hhs içinde)
                                    ▼
                                 Kafka
                                    ▼
@@ -69,6 +69,15 @@ Spesifikasyonun açık bıraktığı yerlerde aldığımız kararlar:
 - `DELETE` kaydı fiziksel olarak siler, böylece YÖS yeniden abone olabilir.
 - `X-TPP-Code` şimdilik doğrulanmadan kabul edilir. Gerçek kimlik doğrulama SSO aşamasında eklenecek.
 - `X-Request-ID` henüz okunmuyor, M5'teki korelasyon adımında eklenecek.
+
+Olay akışı için aldığımız kararlar:
+
+- Relay ayrı servis değil, `mock-hhs` içinde bir bileşen. Outbox tablosu o servisin şemasında olduğu için
+  başka bir servisin bu tabloya erişmesi şema sınırını bozardı.
+- Kafka anahtarı `resourceNo`. Aynı kaynağın olayları aynı partition'a düşer ve sırası korunur.
+- Teslimat en az bir kez garantilidir. Mükerrer mesajlar M5'te `eventNo` ile elenecek.
+- Olay tipleri ve mesaj şekli `event-contract` modülünde durur.
+- Her servisin kendi Oracle kullanıcısı vardır, servisler birbirinin tablosuna erişemez.
 
 Servislerin paket yapısı, bağımlılıklar yalnızca içeriye doğru akacak şekilde:
 
