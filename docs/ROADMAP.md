@@ -78,6 +78,10 @@ Olay akışı için aldığımız kararlar:
 - Teslimat en az bir kez garantilidir. Mükerrer mesajlar M5'te `eventNo` ile elenecek.
 - Olay tipleri ve mesaj şekli `event-contract` modülünde durur.
 - Her servisin kendi Oracle kullanıcısı vardır, servisler birbirinin tablosuna erişemez.
+- Dispatcher aboneliği `subscription-service`'in iç ucundan OpenFeign ile okur.
+- Dispatcher hata alınca olayı atmaz, partition'ı tutarak süresiz yeniden dener. Bu geçici bir çözümdür:
+  Tek bir YÖS'ün arızası diğerlerini de bekletir. M4'te teslimat kayıtları bunu çözecek.
+- YÖS abone olmadan önce oluşan olaylar ona gönderilmez.
 
 Servislerin paket yapısı, bağımlılıklar yalnızca içeriye doğru akacak şekilde:
 

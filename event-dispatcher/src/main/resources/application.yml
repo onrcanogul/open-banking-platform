@@ -1,0 +1,35 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: event-dispatcher
+  kafka:
+    bootstrap-servers: localhost:9092
+    listener:
+      type: batch
+    consumer:
+      group-id: event-dispatcher
+      auto-offset-reset: earliest
+      max-poll-records: 500
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        # An unreadable message becomes a null value instead of blocking the partition forever
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        spring.json.value.default.type: dev.obe.contract.event.NotificationEvent
+        spring.json.use.type.headers: false
+
+obe:
+  hhs-code: "9999"
+  redelivery-interval: PT5S
+  subscription-service-url: http://localhost:8081
+  # The standard reads these addresses from the YOS definition. Stands in until a real client exists.
+  listener-urls:
+    "8001": http://localhost:8083
+    "8002": http://localhost:8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
