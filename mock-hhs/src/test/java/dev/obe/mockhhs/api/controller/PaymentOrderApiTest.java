@@ -24,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -48,6 +49,9 @@ class PaymentOrderApiTest {
 
     @Autowired
     private PaymentOrderRepository orderRepository;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @MockitoSpyBean
     private OutboxEventRepository outboxRepository;
@@ -112,6 +116,20 @@ class PaymentOrderApiTest {
                 .hasRootCauseInstanceOf(IllegalStateException.class);
 
         assertThat(orderRepository.findById(orderNo).orElseThrow().getStatus()).isEqualTo(PaymentStatus.GONDERILDI);
+    }
+
+    @Test
+    void eventIsNotKeptWhenStatusCannotBeWritten() throws Exception {
+        String orderNo = createOrder();
+        // Makes the database itself refuse the update, whenever the code flushes it
+        jdbc.execute("ALTER TABLE payment_order ADD CONSTRAINT ck_test_status CHECK (status <> 'GERCEKLESTI')");
+        try {
+            assertThatThrownBy(() -> changeStatus(orderNo, "GERCEKLESTI"));
+        } finally {
+            jdbc.execute("ALTER TABLE payment_order DROP CONSTRAINT ck_test_status");
+        }
+
+        assertThat(outboxRepository.count()).isZero();
     }
 
     @Test

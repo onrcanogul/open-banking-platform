@@ -29,14 +29,17 @@ public class PaymentOrderService {
         return PaymentOrderResult.from(orderRepository.save(PaymentOrder.create(yosCode, amount, now())));
     }
 
+    @Transactional
     public PaymentOrderResult changeStatus(String orderNo, PaymentStatus newStatus) {
         PaymentOrder order = orderRepository.findById(orderNo)
                 .orElseThrow(() -> new PaymentOrderNotFoundException(orderNo));
         Instant now = now();
-        // TODO(exercise): apply order.changeStatus(newStatus, now). When it returns true, also write
-        // OutboxEvent.paymentOrderUpdated(order, now). The status change and the event must be stored
-        // together: if either write fails, neither may remain in the database.
-        throw new UnsupportedOperationException("Status change is not implemented yet");
+        if (order.changeStatus(newStatus, now)) {
+            outboxRepository.save(OutboxEvent.paymentOrderUpdated(order, now));
+            PaymentOrder savedOrder = orderRepository.save(order);
+            return PaymentOrderResult.from(savedOrder);
+        }
+        return PaymentOrderResult.from(order);
     }
 
     // Trimmed to the column's millisecond precision so responses match what is stored
