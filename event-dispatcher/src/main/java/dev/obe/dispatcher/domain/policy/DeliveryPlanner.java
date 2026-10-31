@@ -5,6 +5,8 @@ import dev.obe.contract.listener.EventNotificationRequest;
 import dev.obe.contract.subscription.SubscribedType;
 import dev.obe.contract.subscription.SubscriptionView;
 import dev.obe.dispatcher.domain.model.DeliveryBatch;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -18,9 +20,28 @@ public class DeliveryPlanner {
      * @param subscriptions subscriptions by YOS code, without YOSes that have none
      */
     public List<DeliveryBatch> plan(List<NotificationEvent> events, Map<String, SubscriptionView> subscriptions) {
-        // TODO(exercise): keep an event only if the subscription of its YOS contains its
-        // SubscribedType. Group kept events by YOS in read order, then split each group into
-        // DeliveryBatch values of at most EventNotificationRequest.MAX_EVENTS events.
-        throw new UnsupportedOperationException("Delivery planning is not implemented yet");
+        Map<String, List<NotificationEvent>> byYos = new LinkedHashMap<>();
+        for (NotificationEvent event : events) {
+            if (isSubscribed(event, subscriptions.get(event.yosCode()))) {
+                byYos.computeIfAbsent(event.yosCode(), code -> new ArrayList<>()).add(event);
+            }
+        }
+        List<DeliveryBatch> batches = new ArrayList<>();
+        byYos.forEach((yosCode, yosEvents) -> batches.addAll(split(yosCode, yosEvents)));
+        return batches;
+    }
+
+    private boolean isSubscribed(NotificationEvent event, SubscriptionView subscription) {
+        return subscription != null
+                && subscription.types().contains(new SubscribedType(event.eventType(), event.resourceType()));
+    }
+
+    private List<DeliveryBatch> split(String yosCode, List<NotificationEvent> events) {
+        List<DeliveryBatch> batches = new ArrayList<>();
+        for (int start = 0; start < events.size(); start += EventNotificationRequest.MAX_EVENTS) {
+            int end = Math.min(start + EventNotificationRequest.MAX_EVENTS, events.size());
+            batches.add(new DeliveryBatch(yosCode, List.copyOf(events.subList(start, end))));
+        }
+        return batches;
     }
 }
