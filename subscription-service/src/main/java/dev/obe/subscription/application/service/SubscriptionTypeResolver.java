@@ -1,15 +1,15 @@
 package dev.obe.subscription.application.service;
 
+import dev.obe.contract.event.EventType;
+import dev.obe.contract.event.ResourceType;
 import dev.obe.subscription.application.command.RequestedType;
 import dev.obe.subscription.application.port.out.YosDirectory;
 import dev.obe.subscription.application.port.out.YosProfile;
-import dev.obe.subscription.domain.model.EventType;
-import dev.obe.subscription.domain.model.ResourceType;
-import dev.obe.subscription.domain.policy.SubscriptionCatalog;
-import dev.obe.subscription.domain.model.SubscriptionType;
-import dev.obe.subscription.domain.model.YosRole;
 import dev.obe.subscription.common.error.OhvpsError;
 import dev.obe.subscription.common.error.OhvpsException;
+import dev.obe.subscription.domain.model.SubscriptionType;
+import dev.obe.subscription.domain.model.YosRole;
+import dev.obe.subscription.domain.policy.SubscriptionCatalog;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;

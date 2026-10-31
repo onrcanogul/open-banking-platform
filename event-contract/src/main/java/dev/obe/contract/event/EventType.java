@@ -1,4 +1,4 @@
-package dev.obe.subscription.domain.model;
+package dev.obe.contract.event;
 
 /** Values of TR.OHVPS.DataCode.OlayTip. */
 public enum EventType {

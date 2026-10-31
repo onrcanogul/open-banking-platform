@@ -2,8 +2,8 @@ package dev.obe.subscription.domain.policy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dev.obe.subscription.domain.model.EventType;
-import dev.obe.subscription.domain.model.ResourceType;
+import dev.obe.contract.event.EventType;
+import dev.obe.contract.event.ResourceType;
 import dev.obe.subscription.domain.model.SubscriptionType;
 import dev.obe.subscription.domain.model.YosRole;
 import org.junit.jupiter.api.Test;

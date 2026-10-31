@@ -1,5 +1,7 @@
 package dev.obe.subscription.domain.model;
 
+import dev.obe.contract.event.EventType;
+import dev.obe.contract.event.ResourceType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;

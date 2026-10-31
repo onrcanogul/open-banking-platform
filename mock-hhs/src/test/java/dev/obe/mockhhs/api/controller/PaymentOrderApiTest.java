@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import dev.obe.contract.event.EventType;
+import dev.obe.contract.event.ResourceType;
 import dev.obe.mockhhs.domain.model.OutboxEvent;
 import dev.obe.mockhhs.domain.model.OutboxStatus;
 import dev.obe.mockhhs.domain.model.PaymentStatus;
@@ -32,7 +34,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.oracle.OracleContainer;
 
-@SpringBootTest(properties = {"ORACLE_HHS_USER=unused", "ORACLE_HHS_PASSWORD=unused"})
+@SpringBootTest(properties = {"ORACLE_HHS_USER=unused", "ORACLE_HHS_PASSWORD=unused",
+        "spring.kafka.admin.auto-create=false", "obe.outbox.relay-enabled=false"})
 @AutoConfigureMockMvc
 @Testcontainers
 class PaymentOrderApiTest {
@@ -80,8 +83,8 @@ class PaymentOrderApiTest {
         List<OutboxEvent> events = outboxRepository.findAll();
         assertThat(events).hasSize(1);
         OutboxEvent event = events.get(0);
-        assertThat(event.getEventType()).isEqualTo("KAYNAK_GUNCELLENDI");
-        assertThat(event.getResourceType()).isEqualTo("ODEME_EMRI");
+        assertThat(event.getEventType()).isEqualTo(EventType.KAYNAK_GUNCELLENDI);
+        assertThat(event.getResourceType()).isEqualTo(ResourceType.ODEME_EMRI);
         assertThat(event.getResourceNo()).isEqualTo(orderNo);
         assertThat(event.getYosCode()).isEqualTo(YOS);
         assertThat(event.getStatus()).isEqualTo(OutboxStatus.PENDING);
