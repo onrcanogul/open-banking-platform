@@ -6,6 +6,7 @@ import dev.obe.subscription.application.command.UpdateSubscriptionCommand;
 import dev.obe.subscription.application.result.SubscriptionResult;
 import dev.obe.subscription.common.error.OhvpsError;
 import dev.obe.subscription.common.error.OhvpsException;
+import dev.obe.subscription.common.persistence.ConstraintViolations;
 import dev.obe.subscription.domain.model.EventSubscription;
 import dev.obe.subscription.domain.model.SubscriptionType;
 import dev.obe.subscription.domain.repository.EventSubscriptionRepository;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,10 +39,15 @@ public class EventSubscriptionService {
         typeResolver.requireListenerApi(yosCode);
         Set<SubscriptionType> types = typeResolver.resolve(yosCode, command.types());
         EventSubscription subscription = EventSubscription.create(yosCode, types, now());
-        // TODO(exercise): persist the subscription and return SubscriptionResult.from(saved, hhsCode).
-        // A second subscription of the same YOS must become EVENT_SUBSCRIPTION_ALREADY_EXISTS,
-        // including when two requests arrive at the same time.
-        throw new UnsupportedOperationException("Subscription creation is not implemented yet");
+        try {
+            EventSubscription createdSubscription = repository.saveAndFlush(subscription);
+            return SubscriptionResult.from(createdSubscription, hhsCode);
+        } catch (DataIntegrityViolationException ex) {
+            if (ConstraintViolations.isViolationOf(ex, EventSubscription.UNIQUE_YOS_CONSTRAINT)) {
+                throw new OhvpsException(OhvpsError.EVENT_SUBSCRIPTION_ALREADY_EXISTS);
+            }
+            throw ex;
+        }
     }
 
     @Transactional(readOnly = true)

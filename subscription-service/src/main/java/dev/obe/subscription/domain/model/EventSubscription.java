@@ -16,6 +16,8 @@ import java.util.UUID;
 @Table(name = "event_subscription")
 public class EventSubscription {
 
+    public static final String UNIQUE_YOS_CONSTRAINT = "UQ_EVENT_SUBSCRIPTION_YOS";
+
     @Id
     @Column(name = "subscription_no", length = 36)
     private String subscriptionNo;
