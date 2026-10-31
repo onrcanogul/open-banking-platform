@@ -1,0 +1,19 @@
+# Maven
+target/
+
+# Frontend
+node_modules/
+dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Local secrets and overrides
+.env
+*.local.yml
+
+# OS
+Thumbs.db
+.DS_Store
