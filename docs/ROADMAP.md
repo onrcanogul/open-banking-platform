@@ -103,6 +103,16 @@ Olay akışı için aldığımız kararlar:
 - Metrik etiketleri yalnızca sınırlı değerlerden oluşur. Olay ve kaynak numaraları loglarda kalır.
 - Prometheus ve Grafana `docker compose --profile observability up -d` ile açılır.
 
+Toplu işler için aldığımız kararlar:
+
+- Spring Batch yalnızca `event-dispatcher`'da. Teslimat arşivi ve mutabakat ilerleme takibi gerektirir, outbox
+  temizliği ise tek bir silme olduğu için basit `@Scheduled` ile yapılır.
+- Zamanlanmış çalıştırmanın kimliği tarihtir, aynı gün ikinci kopya aynı işi başlatamaz.
+- Mutabakat yalnızca rapor üretir. Olayları yeniden göndermek bir insanın kararıdır.
+- Mutabakat bugünkü aboneliğe bakar. Abonelik sonradan değiştiyse yanlış bulgu çıkabilir, bu yüzden bulgular
+  kesin kayıp değil, incelenecek kayıttır.
+- Outbox saklama süresi (7 gün), mutabakatın baktığı süreden uzun olmalıdır.
+
 Servislerin paket yapısı, bağımlılıklar yalnızca içeriye doğru akacak şekilde:
 
 | Paket | Sorumluluk |

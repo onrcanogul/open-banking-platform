@@ -27,6 +27,13 @@ spring:
       # Short, because the cache must not slow things down when Redis is unwell
       timeout: 500ms
       connect-timeout: 500ms
+  batch:
+    job:
+      # Jobs start on their schedule, not when the service starts
+      enabled: false
+    jdbc:
+      # Flyway owns the tables
+      initialize-schema: never
   kafka:
     bootstrap-servers: localhost:9092
     listener:
@@ -45,6 +52,18 @@ spring:
 obe:
   hhs-code: "9999"
   redelivery-interval: PT5S
+  mock-hhs-url: http://localhost:8082
+  batch:
+    scheduler-enabled: true
+    archive:
+      cron: "0 0 2 * * *"
+      retention: P30D
+      chunk-size: 500
+    reconciliation:
+      cron: "0 0 3 * * *"
+      chunk-size: 100
+      # Skips events too new to have reached this service, which are not missing
+      settle-time: PT10M
   subscription-cache:
     # Short, because events filtered by a stale entry are not recovered if an eviction fails
     ttl: PT1M
