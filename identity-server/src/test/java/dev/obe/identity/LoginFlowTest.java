@@ -77,6 +77,19 @@ class LoginFlowTest {
     }
 
     @Test
+    void tellsTheUserThePasswordWasWrong() throws Exception {
+        assertThat(get("/login").body()).contains("Personel Girişi").doesNotContain("hatalı");
+        assertThat(get("/login?error").body()).contains("Kullanıcı adı veya şifre hatalı.");
+    }
+
+    @Test
+    void healthStaysOpenForProbes() throws Exception {
+        HttpRequest probe = HttpRequest.newBuilder(uri("/actuator/health")).GET().build();
+
+        assertThat(client.send(probe, HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(200);
+    }
+
+    @Test
     void viewerGetsATokenWithItsRole() throws Exception {
         String token = accessToken("viewer", "viewer-test");
 
