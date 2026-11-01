@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-core-banking
+  namespace: obe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-core-banking
+  template:
+    metadata:
+      labels:
+        app: mock-core-banking
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: mock-core-banking
+          image: obe/mock-core-banking:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8086
+          envFrom:
+            - configMapRef:
+                name: obe-common
+          resources:
+            requests:
+              cpu: 100m
+              memory: 300Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8086
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8086
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8086
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-core-banking
+  namespace: obe
+spec:
+  selector:
+    app: mock-core-banking
+  ports:
+    - port: 8086

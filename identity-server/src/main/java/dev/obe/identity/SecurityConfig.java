@@ -40,7 +40,7 @@ class SecurityConfig {
         return http
                 .authorizeHttpRequests(requests -> requests
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(login -> login.loginPage(LOGIN_PAGE).permitAll())
                 .build();

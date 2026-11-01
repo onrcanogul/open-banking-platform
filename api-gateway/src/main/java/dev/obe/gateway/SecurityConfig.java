@@ -30,7 +30,7 @@ class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(requests -> requests
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/prometheus").permitAll()
                         .requestMatchers("/disbursements", "/disbursements/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/operations/reconciliation").hasRole("RECONCILER")
                         .requestMatchers(HttpMethod.GET, "/operations/**").hasRole("VIEWER")

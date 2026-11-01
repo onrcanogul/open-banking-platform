@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-dispatcher
+  namespace: obe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-dispatcher
+  template:
+    metadata:
+      labels:
+        app: event-dispatcher
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: event-dispatcher
+          image: obe/event-dispatcher:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: obe-common
+          env:
+            - name: ORACLE_DISPATCHER_USER
+              valueFrom:
+                secretKeyRef:
+                  name: obe-secrets
+                  key: ORACLE_DISPATCHER_USER
+            - name: ORACLE_DISPATCHER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: obe-secrets
+                  key: ORACLE_DISPATCHER_PASSWORD
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: obe-secrets
+                  key: REDIS_PASSWORD
+            - name: OBE_MOCKHHSURL
+              value: http://mock-hhs:8082
+            - name: OBE_SUBSCRIPTIONSERVICEURL
+              value: http://subscription-service:8081
+            - name: SPRING_APPLICATION_JSON
+              value: '{"obe":{"listener-urls":{"8001":"http://mock-yos:8083","8002":"http://mock-yos:8083"}}}'
+          resources:
+            requests:
+              cpu: 100m
+              memory: 300Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8084
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8084
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8084
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-dispatcher
+  namespace: obe
+spec:
+  selector:
+    app: event-dispatcher
+  ports:
+    - port: 8084

@@ -1,0 +1,12 @@
+.git
+.claude
+.env
+.idea
+.vscode
+**/target
+**/node_modules
+**/dist
+infra
+k8s
+docs
+operations-ui

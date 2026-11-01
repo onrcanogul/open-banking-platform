@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-partner
+  namespace: obe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-partner
+  template:
+    metadata:
+      labels:
+        app: mock-partner
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: mock-partner
+          image: obe/mock-partner:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8087
+          envFrom:
+            - configMapRef:
+                name: obe-common
+          resources:
+            requests:
+              cpu: 100m
+              memory: 300Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8087
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8087
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8087
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-partner
+  namespace: obe
+spec:
+  selector:
+    app: mock-partner
+  ports:
+    - port: 8087
