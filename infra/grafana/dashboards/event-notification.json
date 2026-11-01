@@ -1,0 +1,194 @@
+{
+  "uid": "obe-event-notification",
+  "title": "Olay Bildirim",
+  "tags": ["obe"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Sağlık özeti",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Servisler ayakta",
+      "description": "Prometheus'un okuyabildiği servis sayısı. 4 olmalı.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "green", "value": 4 }
+          ] }
+        }
+      },
+      "targets": [ { "refId": "A", "expr": "sum(up)", "instant": true } ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Bekleyen outbox",
+      "description": "Kafka'ya aktarılmayı bekleyen olaylar. Yükseliyorsa relay Kafka'ya ulaşamıyor.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 5, "x": 4, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 1 },
+            { "color": "red", "value": 50 }
+          ] }
+        }
+      },
+      "targets": [ { "refId": "A", "expr": "obe_outbox_pending", "instant": true } ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Bekleyen teslimat",
+      "description": "YÖS'e gönderilmeyi bekleyen olaylar. Yeniden denemeler de buraya dahil.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 5, "x": 9, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 1 },
+            { "color": "red", "value": 50 }
+          ] }
+        }
+      },
+      "targets": [ { "refId": "A", "expr": "obe_delivery_pending", "instant": true } ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "İletilemeyen olay (15 dk)",
+      "description": "Tüm denemeleri bitip İletilemeyen Olaylar'a düşenler.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 5, "x": 14, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ] }
+        }
+      },
+      "targets": [ { "refId": "A", "expr": "sum(increase(obe_delivery_undelivered_total[15m]))", "instant": true } ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "5 sn içinde teslim",
+      "description": "Standardın 'anlık' sınırı içinde teslim edilen olayların oranı.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 5, "x": 19, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "noValue": "-",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "orange", "value": 0.9 },
+            { "color": "green", "value": 0.99 }
+          ] }
+        }
+      },
+      "targets": [ {
+        "refId": "A",
+        "instant": true,
+        "expr": "sum(increase(obe_delivery_latency_seconds_bucket{le=\"5.0\"}[15m])) / sum(increase(obe_delivery_latency_seconds_count[15m]))"
+      } ]
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Hata trafiği",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Hatalı HTTP yanıtları (servis ve durum koduna göre)",
+      "description": "4xx ve 5xx yanıtların saniyedeki sayısı.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "noValue": "Hata yok", "custom": { "drawStyle": "bars", "fillOpacity": 70, "stacking": { "mode": "normal" } } } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] } },
+      "targets": [ {
+        "refId": "A",
+        "legendFormat": "{{job}} {{status}}",
+        "expr": "sum by (job, status) (rate(http_server_requests_seconds_count{status=~\"4..|5..\", uri!~\"/actuator.*\"}[1m]))"
+      } ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Başarısız teslimatlar (YÖS'e göre)",
+      "description": "YÖS'ün 202 dönmediği denemeler. Tek YÖS'te yükselme o YÖS'ün arızasını gösterir.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "ops", "noValue": "Hata yok", "custom": { "drawStyle": "bars", "fillOpacity": 70, "stacking": { "mode": "normal" } } } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] } },
+      "targets": [ {
+        "refId": "A",
+        "legendFormat": "YÖS {{yos}} {{resource_type}}",
+        "expr": "sum by (yos, resource_type) (rate(obe_delivery_attempts_total{result=\"failed\"}[1m]))"
+      } ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Akış",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "HTTP trafiği (servise göre)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [ {
+        "refId": "A",
+        "legendFormat": "{{job}}",
+        "expr": "sum by (job) (rate(http_server_requests_seconds_count{uri!~\"/actuator.*\"}[1m]))"
+      } ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Olay akışı",
+      "description": "Outbox'tan çıkan olaylar ile YÖS'e teslim edilenler.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "refId": "A", "legendFormat": "Kafka'ya yayınlanan", "expr": "sum(rate(obe_outbox_published_total[1m]))" },
+        { "refId": "B", "legendFormat": "YÖS'e teslim edilen", "expr": "sum(rate(obe_delivery_attempts_total{result=\"delivered\"}[1m]))" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Teslimat süresi",
+      "description": "Olayın oluşmasından YÖS'ün 202 dönmesine kadar geçen süre. Standart sınırı 5 saniye.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 17 },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 } },
+      "targets": [
+        { "refId": "A", "legendFormat": "p50", "expr": "histogram_quantile(0.5, sum by (le) (rate(obe_delivery_latency_seconds_bucket[5m])))" },
+        { "refId": "B", "legendFormat": "p95", "expr": "histogram_quantile(0.95, sum by (le) (rate(obe_delivery_latency_seconds_bucket[5m])))" }
+      ]
+    }
+  ]
+}

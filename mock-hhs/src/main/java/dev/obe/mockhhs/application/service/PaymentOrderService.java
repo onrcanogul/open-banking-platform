@@ -7,14 +7,19 @@ import dev.obe.mockhhs.domain.model.PaymentOrder;
 import dev.obe.mockhhs.domain.model.PaymentStatus;
 import dev.obe.mockhhs.domain.repository.OutboxEventRepository;
 import dev.obe.mockhhs.domain.repository.PaymentOrderRepository;
+import dev.obe.observability.Correlation;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PaymentOrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentOrderService.class);
 
     private final PaymentOrderRepository orderRepository;
     private final OutboxEventRepository outboxRepository;
@@ -35,7 +40,8 @@ public class PaymentOrderService {
                 .orElseThrow(() -> new PaymentOrderNotFoundException(orderNo));
         Instant now = now();
         if (order.changeStatus(newStatus, now)) {
-            outboxRepository.save(OutboxEvent.paymentOrderUpdated(order, now));
+            log.info("Payment order {} is now {}", orderNo, newStatus);
+            outboxRepository.save(OutboxEvent.paymentOrderUpdated(order, now, Correlation.current()));
             PaymentOrder savedOrder = orderRepository.save(order);
             return PaymentOrderResult.from(savedOrder);
         }

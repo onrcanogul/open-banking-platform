@@ -94,6 +94,15 @@ Olay akışı için aldığımız kararlar:
   cevabını alır.
 - Rıza iptali olayı yalnızca hesap bilgisi rızası için üretilir. Ödeme emri rızası için standartta bu olay yok.
 
+İzlenebilirlik için aldığımız kararlar:
+
+- Korelasyon kimliği `X-Request-ID`'den gelir, yoksa veya biçimi geçersizse yeni üretilir. `X-Request-ID` eksik
+  diye istek reddedilmez, standart zorunlu kılsa da.
+- Kimlik `NotificationEvent` içinde taşınır, Kafka başlığı kullanılmaz. YÖS'e gitmez, YÖS'e her çağrı için ayrı
+  `X-Request-ID` gönderilir ve ikisi dispatcher logunda eşleşir.
+- Metrik etiketleri yalnızca sınırlı değerlerden oluşur. Olay ve kaynak numaraları loglarda kalır.
+- Prometheus ve Grafana `docker compose --profile observability up -d` ile açılır.
+
 Servislerin paket yapısı, bağımlılıklar yalnızca içeriye doğru akacak şekilde:
 
 | Paket | Sorumluluk |

@@ -5,6 +5,7 @@ import dev.obe.contract.listener.EventNotification;
 import dev.obe.dispatcher.application.port.out.EventListenerClient;
 import dev.obe.dispatcher.domain.model.DeliveryBatch;
 import dev.obe.dispatcher.infrastructure.config.DispatcherProperties;
+import dev.obe.observability.Correlation;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,7 +33,7 @@ class RestEventListenerClient implements EventListenerClient {
     }
 
     @Override
-    public void deliver(DeliveryBatch batch) {
+    public void deliver(DeliveryBatch batch, String requestId) {
         String baseUrl = properties.listenerUrls().get(batch.yosCode());
         if (baseUrl == null) {
             throw new IllegalStateException("No listener address for YOS " + batch.yosCode());
@@ -40,6 +41,7 @@ class RestEventListenerClient implements EventListenerClient {
         ResponseEntity<Void> response = restClient.post()
                 .uri(baseUrl + "/olay-dinleme")
                 .contentType(MediaType.APPLICATION_JSON)
+                .header(Correlation.HEADER, requestId)
                 .body(toRequest(batch))
                 .retrieve()
                 .toBodilessEntity();

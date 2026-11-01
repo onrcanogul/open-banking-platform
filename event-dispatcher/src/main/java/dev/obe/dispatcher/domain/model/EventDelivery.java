@@ -55,6 +55,9 @@ public class EventDelivery {
     @Column(name = "finished_at")
     private Instant finishedAt;
 
+    @Column(name = "correlation_id", length = 36, updatable = false)
+    private String correlationId;
+
     protected EventDelivery() {
     }
 
@@ -67,6 +70,7 @@ public class EventDelivery {
         this.occurredAt = event.occurredAt();
         this.status = DeliveryStatus.PENDING;
         this.nextAttemptAt = now;
+        this.correlationId = event.correlationId();
     }
 
     public static EventDelivery create(NotificationEvent event, Instant now) {
@@ -96,7 +100,7 @@ public class EventDelivery {
     }
 
     public NotificationEvent toNotificationEvent() {
-        return new NotificationEvent(eventNo, yosCode, eventType, resourceType, resourceNo, occurredAt);
+        return new NotificationEvent(eventNo, yosCode, eventType, resourceType, resourceNo, occurredAt, correlationId);
     }
 
     public String getEventNo() {
@@ -129,5 +133,9 @@ public class EventDelivery {
 
     public Instant getNextAttemptAt() {
         return nextAttemptAt;
+    }
+
+    public String getCorrelationId() {
+        return correlationId;
     }
 }

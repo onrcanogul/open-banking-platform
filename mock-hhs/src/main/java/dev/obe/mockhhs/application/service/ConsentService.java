@@ -10,6 +10,7 @@ import dev.obe.mockhhs.domain.model.ConsentType;
 import dev.obe.mockhhs.domain.model.OutboxEvent;
 import dev.obe.mockhhs.domain.repository.ConsentRepository;
 import dev.obe.mockhhs.domain.repository.OutboxEventRepository;
+import dev.obe.observability.Correlation;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -44,7 +45,7 @@ public class ConsentService {
         Consent consent = find(consentNo);
         Instant now = now();
         consent.authorize(UUID.randomUUID().toString(), now.plus(codeLifetime), now);
-        outboxRepository.save(OutboxEvent.consentEvent(consent, EventType.AYRIK_GKD_BASARILI, now));
+        outboxRepository.save(OutboxEvent.consentEvent(consent, EventType.AYRIK_GKD_BASARILI, now, Correlation.current()));
         return ConsentResult.from(consent);
     }
 
@@ -54,7 +55,7 @@ public class ConsentService {
         Consent consent = find(consentNo);
         Instant now = now();
         consent.rejectAuthentication(cancelCode, now);
-        outboxRepository.save(OutboxEvent.consentEvent(consent, EventType.AYRIK_GKD_BASARISIZ, now));
+        outboxRepository.save(OutboxEvent.consentEvent(consent, EventType.AYRIK_GKD_BASARISIZ, now, Correlation.current()));
         return ConsentResult.from(consent);
     }
 
@@ -67,7 +68,7 @@ public class ConsentService {
         }
         Instant now = now();
         consent.revokeByCustomer(now);
-        outboxRepository.save(OutboxEvent.consentEvent(consent, EventType.KAYNAK_GUNCELLENDI, now));
+        outboxRepository.save(OutboxEvent.consentEvent(consent, EventType.KAYNAK_GUNCELLENDI, now, Correlation.current()));
         return ConsentResult.from(consent);
     }
 

@@ -49,7 +49,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
   endpoint:
     health:
       show-details: always
@@ -57,3 +57,7 @@ management:
     redis:
       # Redis is only a cache, so losing it does not make this service unhealthy
       enabled: false
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "

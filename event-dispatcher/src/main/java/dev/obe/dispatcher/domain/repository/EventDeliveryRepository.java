@@ -2,6 +2,7 @@ package dev.obe.dispatcher.domain.repository;
 
 import dev.obe.contract.event.EventType;
 import dev.obe.contract.event.ResourceType;
+import dev.obe.dispatcher.domain.model.DeliveryStatus;
 import dev.obe.dispatcher.domain.model.EventDelivery;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
@@ -16,6 +17,8 @@ import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 public interface EventDeliveryRepository extends JpaRepository<EventDelivery, String> {
+
+    long countByStatus(DeliveryStatus status);
 
     /** Selection and locking are separate because Oracle rejects FOR UPDATE with a row limit. */
     @Query("""

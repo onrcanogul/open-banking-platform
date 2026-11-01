@@ -19,6 +19,7 @@
 
     <modules>
         <module>event-contract</module>
+        <module>observability-support</module>
         <module>subscription-service</module>
         <module>mock-hhs</module>
         <module>mock-yos</module>
@@ -35,6 +36,11 @@
             <dependency>
                 <groupId>dev.obe</groupId>
                 <artifactId>event-contract</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.obe</groupId>
+                <artifactId>observability-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -69,7 +69,42 @@ services:
       timeout: 3s
       retries: 10
 
+  # Started only with: docker compose --profile observability up -d
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    profiles: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=2d
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      # The services run on the host, not on the compose network
+      - host.docker.internal:host-gateway
+
+  grafana:
+    image: grafana/grafana:13.3.0
+    profiles: [observability]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set in .env}
+      # Read-only access without a login, reachable from this machine only
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
+  prometheus-data:
+  grafana-data:
   oracle-data:
   kafka-data:
   redis-data:

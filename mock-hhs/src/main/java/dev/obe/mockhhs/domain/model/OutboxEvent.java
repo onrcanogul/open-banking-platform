@@ -44,11 +44,14 @@ public class OutboxEvent {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    @Column(name = "correlation_id", length = 36, updatable = false)
+    private String correlationId;
+
     protected OutboxEvent() {
     }
 
     private OutboxEvent(String yosCode, EventType eventType, ResourceType resourceType, String resourceNo,
-            Instant occurredAt) {
+            Instant occurredAt, String correlationId) {
         this.eventNo = UUID.randomUUID().toString();
         this.yosCode = yosCode;
         this.eventType = eventType;
@@ -56,16 +59,18 @@ public class OutboxEvent {
         this.resourceNo = resourceNo;
         this.occurredAt = occurredAt;
         this.status = OutboxStatus.PENDING;
+        this.correlationId = correlationId;
     }
 
-    public static OutboxEvent paymentOrderUpdated(PaymentOrder order, Instant occurredAt) {
+    public static OutboxEvent paymentOrderUpdated(PaymentOrder order, Instant occurredAt, String correlationId) {
         return new OutboxEvent(order.getYosCode(), EventType.KAYNAK_GUNCELLENDI, ResourceType.ODEME_EMRI,
-                order.getOrderNo(), occurredAt);
+                order.getOrderNo(), occurredAt, correlationId);
     }
 
-    public static OutboxEvent consentEvent(Consent consent, EventType eventType, Instant occurredAt) {
+    public static OutboxEvent consentEvent(Consent consent, EventType eventType, Instant occurredAt,
+            String correlationId) {
         return new OutboxEvent(consent.getYosCode(), eventType, consent.getType().resourceType(),
-                consent.getConsentNo(), occurredAt);
+                consent.getConsentNo(), occurredAt, correlationId);
     }
 
     public void markPublished(Instant now) {
@@ -74,7 +79,7 @@ public class OutboxEvent {
     }
 
     public NotificationEvent toNotificationEvent() {
-        return new NotificationEvent(eventNo, yosCode, eventType, resourceType, resourceNo, occurredAt);
+        return new NotificationEvent(eventNo, yosCode, eventType, resourceType, resourceNo, occurredAt, correlationId);
     }
 
     public String getEventNo() {
@@ -103,5 +108,9 @@ public class OutboxEvent {
 
     public OutboxStatus getStatus() {
         return status;
+    }
+
+    public String getCorrelationId() {
+        return correlationId;
     }
 }

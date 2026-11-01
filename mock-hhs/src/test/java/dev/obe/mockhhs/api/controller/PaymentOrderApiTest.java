@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -88,6 +89,20 @@ class PaymentOrderApiTest {
         assertThat(event.getResourceNo()).isEqualTo(orderNo);
         assertThat(event.getYosCode()).isEqualTo(YOS);
         assertThat(event.getStatus()).isEqualTo(OutboxStatus.PENDING);
+    }
+
+    @Test
+    void eventKeepsTheRequestId() throws Exception {
+        String orderNo = createOrder();
+
+        mvc.perform(patch("/internal/payment-orders/" + orderNo + "/status")
+                        .header("X-Request-ID", "corr-1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"GERCEKLESTI\"}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Request-ID", "corr-1"));
+
+        assertThat(outboxRepository.findAll().get(0).getCorrelationId()).isEqualTo("corr-1");
     }
 
     @Test

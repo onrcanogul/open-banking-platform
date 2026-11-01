@@ -3,6 +3,7 @@ package dev.obe.dispatcher.infrastructure.messaging;
 import dev.obe.contract.event.NotificationEvent;
 import dev.obe.contract.event.NotificationTopics;
 import dev.obe.dispatcher.application.service.EventIntakeService;
+import dev.obe.observability.Correlation;
 import java.util.List;
 import java.util.Objects;
 import org.slf4j.Logger;
@@ -29,5 +30,8 @@ class NotificationEventConsumer {
             log.error("Skipped {} unreadable messages", messages.size() - events.size());
         }
         intake.accept(events);
+        // The listener thread has no request, so each event brings back the id of its own
+        events.forEach(event -> Correlation.run(event.correlationId(),
+                () -> log.info("Accepted event {} for YOS {}", event.eventNo(), event.yosCode())));
     }
 }

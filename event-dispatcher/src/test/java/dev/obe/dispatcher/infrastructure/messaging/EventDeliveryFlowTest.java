@@ -95,7 +95,7 @@ class EventDeliveryFlowTest {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    private record Delivery(String yosCode, String body) {
+    private record Delivery(String yosCode, String body, String requestId) {
     }
 
     @BeforeAll
@@ -169,6 +169,32 @@ class EventDeliveryFlowTest {
         assertThat(JsonPath.<String>read(body, "$.olaylar[0].olayTipi")).isEqualTo("KAYNAK_GUNCELLENDI");
         assertThat(JsonPath.<String>read(body, "$.olaylar[0].kaynakTipi")).isEqualTo("ODEME_EMRI");
         assertThat(JsonPath.<String>read(body, "$.olaylar[0].kaynakNo")).isEqualTo(event.resourceNo());
+    }
+
+    @Test
+    void keepsCorrelationIdOfTheEvent() {
+        NotificationEvent event = new NotificationEvent(UUID.randomUUID().toString(), YOS_A,
+                EventType.KAYNAK_GUNCELLENDI, ResourceType.ODEME_EMRI, UUID.randomUUID().toString(),
+                Instant.now().truncatedTo(ChronoUnit.MILLIS), "corr-1");
+
+        send(event);
+
+        awaitStatus(event, DeliveryStatus.DELIVERED);
+        assertThat(delivery(event).getCorrelationId()).isEqualTo("corr-1");
+    }
+
+    @Test
+    void sendsAnIdForTheCallWithoutRevealingOurOwn() {
+        NotificationEvent event = new NotificationEvent(UUID.randomUUID().toString(), YOS_A,
+                EventType.KAYNAK_GUNCELLENDI, ResourceType.ODEME_EMRI, UUID.randomUUID().toString(),
+                Instant.now().truncatedTo(ChronoUnit.MILLIS), "corr-2");
+
+        send(event);
+
+        awaitStatus(event, DeliveryStatus.DELIVERED);
+        Delivery received = deliveriesOf(event).get(0);
+        assertThat(received.requestId()).isNotBlank().isNotEqualTo("corr-2");
+        assertThat(received.body()).doesNotContain("corr-2");
     }
 
     @Test
@@ -353,7 +379,7 @@ class EventDeliveryFlowTest {
 
     private static void receiveDelivery(HttpExchange exchange, String yosCode) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        deliveries.add(new Delivery(yosCode, body));
+        deliveries.add(new Delivery(yosCode, body, exchange.getRequestHeaders().getFirst("X-Request-ID")));
         respond(exchange, downYoses.contains(yosCode) ? 503 : 202, "");
     }
 

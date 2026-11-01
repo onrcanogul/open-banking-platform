@@ -1,10 +1,13 @@
 package dev.obe.dispatcher.application.service;
 
 import dev.obe.contract.event.NotificationEvent;
+import dev.obe.dispatcher.application.port.out.DeliveryMetrics;
 import dev.obe.dispatcher.application.port.out.EventListenerClient;
 import dev.obe.dispatcher.domain.model.DeliveryBatch;
 import dev.obe.dispatcher.domain.policy.DeliveryPlanner;
+import dev.obe.observability.Correlation;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.slf4j.Logger;
@@ -21,13 +24,15 @@ public class DeliverySender {
     private final DeliveryStore store;
     private final DeliveryPlanner planner;
     private final EventListenerClient listenerClient;
+    private final DeliveryMetrics metrics;
     private final Executor executor;
 
     public DeliverySender(DeliveryStore store, DeliveryPlanner planner, EventListenerClient listenerClient,
-            @Qualifier("deliveryExecutor") Executor executor) {
+            DeliveryMetrics metrics, @Qualifier("deliveryExecutor") Executor executor) {
         this.store = store;
         this.planner = planner;
         this.listenerClient = listenerClient;
+        this.metrics = metrics;
         this.executor = executor;
     }
 
@@ -44,13 +49,33 @@ public class DeliverySender {
 
     private void send(DeliveryBatch batch) {
         List<String> eventNos = batch.events().stream().map(NotificationEvent::eventNo).toList();
+        // Our correlation ids stay inside the bank, so the YOS gets an id for this call instead
+        String requestId = Correlation.newId();
         try {
-            listenerClient.deliver(batch);
+            listenerClient.deliver(batch, requestId);
         } catch (RuntimeException ex) {
-            log.warn("Delivery to YOS {} failed: {}", batch.yosCode(), ex.getMessage());
-            store.recordFailure(eventNos, ex.getMessage());
+            Set<String> exhausted = store.recordFailure(eventNos, ex.getMessage());
+            batch.events().forEach(event -> recordFailure(event, exhausted, requestId, ex));
             return;
         }
         store.markDelivered(eventNos);
+        batch.events().forEach(event -> recordDelivery(event, requestId));
+    }
+
+    private void recordDelivery(NotificationEvent event, String requestId) {
+        metrics.delivered(event);
+        Correlation.run(event.correlationId(),
+                () -> log.info("Delivered event {} to YOS {} in call {}", event.eventNo(), event.yosCode(), requestId));
+    }
+
+    private void recordFailure(NotificationEvent event, Set<String> exhausted, String requestId, Exception cause) {
+        metrics.failed(event);
+        boolean undelivered = exhausted.contains(event.eventNo());
+        if (undelivered) {
+            metrics.undelivered(event);
+        }
+        Correlation.run(event.correlationId(),
+                () -> log.warn("Delivery of event {} to YOS {} failed in call {}, undelivered={}: {}", event.eventNo(),
+                        event.yosCode(), requestId, undelivered, cause.getMessage()));
     }
 }

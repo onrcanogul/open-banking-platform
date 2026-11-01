@@ -1,6 +1,7 @@
 package dev.obe.mockhhs.domain.repository;
 
 import dev.obe.mockhhs.domain.model.OutboxEvent;
+import dev.obe.mockhhs.domain.model.OutboxStatus;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import java.util.List;
@@ -12,6 +13,8 @@ import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, String> {
+
+    long countByStatus(OutboxStatus status);
 
     /** Selection and locking are separate because Oracle rejects FOR UPDATE with a row limit. */
     @Query("""

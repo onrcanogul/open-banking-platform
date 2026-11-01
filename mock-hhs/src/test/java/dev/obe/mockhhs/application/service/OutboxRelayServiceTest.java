@@ -53,6 +53,7 @@ class OutboxRelayServiceTest {
 
     private static final Duration AFTER_LAST_MESSAGE = Duration.ofSeconds(2);
     private static final Duration READ_LIMIT = Duration.ofSeconds(30);
+    private static final String CORRELATION_ID = "corr-1";
 
     @Container
     @ServiceConnection
@@ -98,6 +99,7 @@ class OutboxRelayServiceTest {
         assertThat(JsonPath.<String>read(message.value(), "$.eventType")).isEqualTo("KAYNAK_GUNCELLENDI");
         assertThat(JsonPath.<String>read(message.value(), "$.resourceType")).isEqualTo("ODEME_EMRI");
         assertThat(JsonPath.<String>read(message.value(), "$.yosCode")).isEqualTo("8001");
+        assertThat(JsonPath.<String>read(message.value(), "$.correlationId")).isEqualTo(CORRELATION_ID);
         assertThat(statusOf(event)).isEqualTo(OutboxStatus.PUBLISHED);
     }
 
@@ -201,7 +203,7 @@ class OutboxRelayServiceTest {
     private OutboxEvent pendingEvent() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         PaymentOrder order = orderRepository.save(PaymentOrder.create("8001", new BigDecimal("10.00"), now));
-        return outboxRepository.save(OutboxEvent.paymentOrderUpdated(order, now));
+        return outboxRepository.save(OutboxEvent.paymentOrderUpdated(order, now, CORRELATION_ID));
     }
 
     private OutboxStatus statusOf(OutboxEvent event) {

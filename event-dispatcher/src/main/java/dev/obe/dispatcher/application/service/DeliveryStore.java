@@ -8,6 +8,7 @@ import dev.obe.dispatcher.domain.repository.EventDeliveryRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -69,16 +70,20 @@ public class DeliveryStore {
         repository.findAllById(eventNos).forEach(delivery -> delivery.markDelivered(now));
     }
 
+    /** Returns the events that ran out of retries with this failure. */
     @Transactional
-    public void recordFailure(List<String> eventNos, String error) {
+    public Set<String> recordFailure(List<String> eventNos, String error) {
         Instant now = now();
+        Set<String> exhausted = new HashSet<>();
         for (EventDelivery delivery : repository.findAllById(eventNos)) {
             delivery.recordFailure(error, now);
             if (delivery.getStatus() == DeliveryStatus.UNDELIVERED) {
+                exhausted.add(delivery.getEventNo());
                 repository.supersedeUndelivered(delivery.getYosCode(), delivery.getEventType(),
                         delivery.getResourceType(), delivery.getResourceNo(), delivery.getEventNo());
             }
         }
+        return exhausted;
     }
 
     /** Returns one page of undelivered events, oldest first. Pages start from 1. */
