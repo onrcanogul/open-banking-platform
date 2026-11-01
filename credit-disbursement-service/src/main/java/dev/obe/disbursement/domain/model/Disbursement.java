@@ -184,6 +184,14 @@ public class Disbursement {
         return failureReason;
     }
 
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
     public String getCorrelationId() {
         return correlationId;
     }

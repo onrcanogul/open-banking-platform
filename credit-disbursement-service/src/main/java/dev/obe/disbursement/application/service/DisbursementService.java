@@ -1,6 +1,7 @@
 package dev.obe.disbursement.application.service;
 
 import dev.obe.disbursement.application.result.DisbursementResult;
+import dev.obe.disbursement.application.result.DisbursementSummary;
 import dev.obe.disbursement.domain.exception.DisbursementNotFoundException;
 import dev.obe.disbursement.domain.exception.IdempotencyConflictException;
 import dev.obe.disbursement.domain.model.Disbursement;
@@ -9,9 +10,12 @@ import dev.obe.disbursement.domain.repository.DisbursementRepository;
 import dev.obe.observability.Correlation;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +60,14 @@ public class DisbursementService {
                 .filter(disbursement -> disbursement.getPartnerCode().equals(partnerCode))
                 .map(DisbursementResult::from)
                 .orElseThrow(() -> new DisbursementNotFoundException(disbursementNo));
+    }
+
+    @Transactional(readOnly = true)
+    public List<DisbursementSummary> latest(int page, int size) {
+        Sort newestFirst = Sort.by(Sort.Direction.DESC, "createdAt", "disbursementNo");
+        return repository.findAllBy(PageRequest.of(page, size, newestFirst)).stream()
+                .map(DisbursementSummary::from)
+                .toList();
     }
 
     private Optional<Disbursement> find(String partnerCode, String idempotencyKey) {

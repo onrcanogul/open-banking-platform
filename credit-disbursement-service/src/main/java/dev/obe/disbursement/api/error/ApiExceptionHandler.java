@@ -24,6 +24,6 @@ class ApiExceptionHandler {
 
     @ExceptionHandler({MissingRequestHeaderException.class, HandlerMethodValidationException.class})
     ProblemDetail handleBadRequest(Exception ex) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "A required header is missing or invalid");
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "A header or parameter is missing or invalid");
     }
 }

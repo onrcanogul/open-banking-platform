@@ -19,6 +19,8 @@ public interface DisbursementRepository extends JpaRepository<Disbursement, Stri
 
     Optional<Disbursement> findByPartnerCodeAndIdempotencyKey(String partnerCode, String idempotencyKey);
 
+    List<Disbursement> findAllBy(Pageable page);
+
     /** Selection and locking are separate because Oracle rejects FOR UPDATE with a row limit. */
     @Query("""
             select d.disbursementNo from Disbursement d
