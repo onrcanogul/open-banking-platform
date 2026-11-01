@@ -18,6 +18,7 @@ import com.jayway.jsonpath.JsonPath;
 import dev.obe.contract.event.EventType;
 import dev.obe.contract.event.NotificationEvent;
 import dev.obe.contract.event.ResourceType;
+import dev.obe.contract.subscription.SubscriptionCacheKeys;
 import dev.obe.subscription.application.port.out.UndeliveredEventsClient;
 import dev.obe.subscription.domain.policy.UndeliveredWindow;
 import dev.obe.subscription.domain.repository.EventSubscriptionRepository;
@@ -37,16 +38,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.oracle.OracleContainer;
 
-@SpringBootTest(properties = {"ORACLE_APP_USER=unused", "ORACLE_APP_PASSWORD=unused"})
+@SpringBootTest(properties = {"ORACLE_APP_USER=unused", "ORACLE_APP_PASSWORD=unused", "REDIS_PASSWORD=unused"})
 @AutoConfigureMockMvc
 @Testcontainers
 class EventSubscriptionApiTest {
@@ -67,8 +70,15 @@ class EventSubscriptionApiTest {
     static OracleContainer oracle = new OracleContainer("gvenzl/oracle-free:23.26.3-slim-faststart")
             .withStartupTimeout(Duration.ofMinutes(5));
 
+    @Container
+    @ServiceConnection(name = "redis")
+    static GenericContainer<?> redis = new GenericContainer<>("redis:8.10.3-alpine").withExposedPorts(6379);
+
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
     @Autowired
     private EventSubscriptionRepository repository;
@@ -220,6 +230,52 @@ class EventSubscriptionApiTest {
     }
 
     @Test
+    void creatingClearsCachedAnswerThatYosHasNoSubscription() throws Exception {
+        cacheEntry(FULL_YOS);
+
+        createSubscription(FULL_YOS);
+
+        assertThat(cachedEntry(FULL_YOS)).isNull();
+    }
+
+    @Test
+    void updatingClearsCachedSubscription() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+        cacheEntry(FULL_YOS);
+
+        mvc.perform(withHeaders(put("/olay-abonelik/" + subscriptionNo), FULL_YOS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody(subscriptionNo, FULL_YOS, "KAYNAK_GUNCELLENDI", "ODEME_EMRI")))
+                .andExpect(status().isOk());
+
+        assertThat(cachedEntry(FULL_YOS)).isNull();
+    }
+
+    @Test
+    void deletingClearsCachedSubscription() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+        cacheEntry(FULL_YOS);
+
+        mvc.perform(withHeaders(delete("/olay-abonelik/" + subscriptionNo), FULL_YOS))
+                .andExpect(status().isNoContent());
+
+        assertThat(cachedEntry(FULL_YOS)).isNull();
+    }
+
+    @Test
+    void failedChangeLeavesCacheAlone() throws Exception {
+        createSubscription(FULL_YOS);
+        cacheEntry(FULL_YOS);
+
+        mvc.perform(withHeaders(post("/olay-abonelik"), FULL_YOS)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody(FULL_YOS, "KAYNAK_GUNCELLENDI", "BAKIYE")))
+                .andExpect(status().isBadRequest());
+
+        assertThat(cachedEntry(FULL_YOS)).isNotNull();
+    }
+
+    @Test
     void listsUndeliveredEventsInTheStandardsShape() throws Exception {
         String subscriptionNo = createSubscription(FULL_YOS);
         NotificationEvent event = new NotificationEvent("event-1", FULL_YOS, EventType.KAYNAK_GUNCELLENDI,
@@ -301,6 +357,14 @@ class EventSubscriptionApiTest {
         mvc.perform(withHeaders(delete("/olay-abonelik/" + subscriptionNo), HBH_ONLY_YOS))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value(NOT_FOUND));
+    }
+
+    private void cacheEntry(String yos) {
+        redisTemplate.opsForValue().set(SubscriptionCacheKeys.of(yos), "cached");
+    }
+
+    private String cachedEntry(String yos) {
+        return redisTemplate.opsForValue().get(SubscriptionCacheKeys.of(yos));
     }
 
     private String undeliveredPath(String subscriptionNo) {

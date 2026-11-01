@@ -19,6 +19,14 @@ spring:
       # Timestamp columns have no zone and always hold UTC
       hibernate.jdbc.time_zone: UTC
       hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD}
+      # Short, because the cache must not slow things down when Redis is unwell
+      timeout: 500ms
+      connect-timeout: 500ms
   kafka:
     bootstrap-servers: localhost:9092
     listener:
@@ -37,6 +45,10 @@ spring:
 obe:
   hhs-code: "9999"
   redelivery-interval: PT5S
+  subscription-cache:
+    # Short, because events filtered by a stale entry are not recovered if an eviction fails
+    ttl: PT1M
+    not-subscribed-ttl: PT30S
   delivery:
     scheduler-enabled: true
     poll-interval: PT1S
@@ -55,3 +67,7 @@ management:
     web:
       exposure:
         include: health
+  health:
+    redis:
+      # Redis is only a cache here, so losing it does not make this service unhealthy
+      enabled: false

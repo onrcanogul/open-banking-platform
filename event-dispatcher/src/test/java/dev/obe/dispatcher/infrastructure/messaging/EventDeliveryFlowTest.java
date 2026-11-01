@@ -10,6 +10,7 @@ import dev.obe.contract.event.EventType;
 import dev.obe.contract.event.NotificationEvent;
 import dev.obe.contract.event.NotificationTopics;
 import dev.obe.contract.event.ResourceType;
+import dev.obe.contract.subscription.SubscriptionCacheKeys;
 import dev.obe.dispatcher.domain.model.DeliveryStatus;
 import dev.obe.dispatcher.domain.model.EventDelivery;
 import dev.obe.dispatcher.domain.repository.EventDeliveryRepository;
@@ -25,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,10 +34,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
@@ -43,7 +47,7 @@ import org.testcontainers.oracle.OracleContainer;
 
 /** Runs the dispatcher against a real broker and database, with HTTP stubs for other services. */
 @SpringBootTest(properties = {"ORACLE_DISPATCHER_USER=unused", "ORACLE_DISPATCHER_PASSWORD=unused",
-        "obe.redelivery-interval=PT0.5S", "obe.delivery.poll-interval=PT0.2S",
+        "REDIS_PASSWORD=unused", "obe.redelivery-interval=PT0.5S", "obe.delivery.poll-interval=PT0.2S",
         "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JacksonJsonSerializer",
         "spring.kafka.producer.properties.spring.json.add.type.headers=false"})
 @Testcontainers
@@ -69,7 +73,12 @@ class EventDeliveryFlowTest {
     static OracleContainer oracle = new OracleContainer("gvenzl/oracle-free:23.26.3-slim-faststart")
             .withStartupTimeout(Duration.ofMinutes(5));
 
+    @Container
+    @ServiceConnection(name = "redis")
+    static GenericContainer<?> redis = new GenericContainer<>("redis:8.10.3-alpine").withExposedPorts(6379);
+
     private static final List<Delivery> deliveries = new CopyOnWriteArrayList<>();
+    private static final AtomicInteger subscriptionLookups = new AtomicInteger();
     private static final Set<String> downYoses = ConcurrentHashMap.newKeySet();
     private static volatile boolean subscriptionServiceDown;
     private static HttpServer stubs;
@@ -82,6 +91,9 @@ class EventDeliveryFlowTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
     private record Delivery(String yosCode, String body) {
     }
@@ -114,7 +126,33 @@ class EventDeliveryFlowTest {
         deliveries.clear();
         downYoses.clear();
         subscriptionServiceDown = false;
+        subscriptionLookups.set(0);
         repository.deleteAll();
+        redisTemplate.delete(List.of(SubscriptionCacheKeys.of(YOS_A), SubscriptionCacheKeys.of(YOS_B),
+                SubscriptionCacheKeys.of(UNSUBSCRIBED_YOS)));
+    }
+
+    @Test
+    void asksForASubscriptionOnlyOnce() {
+        NotificationEvent first = event(YOS_A, ResourceType.ODEME_EMRI);
+        NotificationEvent second = event(YOS_A, ResourceType.ODEME_EMRI);
+
+        send(first);
+        awaitStatus(first, DeliveryStatus.DELIVERED);
+        send(second);
+        awaitStatus(second, DeliveryStatus.DELIVERED);
+
+        assertThat(subscriptionLookups).hasValue(1);
+    }
+
+    @Test
+    void remembersThatYosHasNoSubscription() {
+        NotificationEvent before = event(UNSUBSCRIBED_YOS, ResourceType.ODEME_EMRI);
+        NotificationEvent marker = event(YOS_A, ResourceType.ODEME_EMRI);
+        send(before);
+        send(marker);
+        awaitStatus(marker, DeliveryStatus.DELIVERED);
+        assertThat(redisTemplate.opsForValue().get(SubscriptionCacheKeys.of(UNSUBSCRIBED_YOS))).isEqualTo("none");
     }
 
     @Test
@@ -304,6 +342,7 @@ class EventDeliveryFlowTest {
     }
 
     private static void answerSubscription(HttpExchange exchange, String yosCode) throws IOException {
+        subscriptionLookups.incrementAndGet();
         if (subscriptionServiceDown) {
             respond(exchange, 503, "");
             return;

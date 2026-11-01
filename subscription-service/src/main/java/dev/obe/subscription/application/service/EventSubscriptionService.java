@@ -4,6 +4,7 @@ import dev.obe.contract.event.NotificationEvent;
 import dev.obe.subscription.application.command.CreateSubscriptionCommand;
 import dev.obe.subscription.application.command.Participant;
 import dev.obe.subscription.application.command.UpdateSubscriptionCommand;
+import dev.obe.subscription.application.event.SubscriptionChanged;
 import dev.obe.subscription.application.port.out.UndeliveredEventsClient;
 import dev.obe.subscription.application.result.SubscriptionResult;
 import dev.obe.subscription.common.error.OhvpsError;
@@ -18,6 +19,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,13 +30,16 @@ public class EventSubscriptionService {
     private final EventSubscriptionRepository repository;
     private final SubscriptionTypeResolver typeResolver;
     private final UndeliveredEventsClient undeliveredEvents;
+    private final ApplicationEventPublisher events;
     private final String hhsCode;
 
     public EventSubscriptionService(EventSubscriptionRepository repository, SubscriptionTypeResolver typeResolver,
-            UndeliveredEventsClient undeliveredEvents, @Value("${obe.hhs-code}") String hhsCode) {
+            UndeliveredEventsClient undeliveredEvents, ApplicationEventPublisher events,
+            @Value("${obe.hhs-code}") String hhsCode) {
         this.repository = repository;
         this.typeResolver = typeResolver;
         this.undeliveredEvents = undeliveredEvents;
+        this.events = events;
         this.hhsCode = hhsCode;
     }
 
@@ -47,6 +52,7 @@ public class EventSubscriptionService {
         EventSubscription subscription = EventSubscription.create(yosCode, types, now());
         try {
             EventSubscription createdSubscription = repository.saveAndFlush(subscription);
+            events.publishEvent(new SubscriptionChanged(yosCode));
             return SubscriptionResult.from(createdSubscription, hhsCode);
         } catch (DataIntegrityViolationException ex) {
             if (ConstraintViolations.isViolationOf(ex, EventSubscription.UNIQUE_YOS_CONSTRAINT)) {
@@ -80,6 +86,7 @@ public class EventSubscriptionService {
         String yosCode = command.caller().yosCode();
         EventSubscription subscription = findOwned(yosCode, command.subscriptionNo());
         subscription.replaceTypes(typeResolver.resolve(yosCode, command.types()), now());
+        events.publishEvent(new SubscriptionChanged(yosCode));
         return SubscriptionResult.from(subscription, hhsCode);
     }
 
@@ -87,6 +94,7 @@ public class EventSubscriptionService {
     public void delete(Participant caller, String subscriptionNo) {
         requireThisHhs(caller);
         repository.delete(findOwned(caller.yosCode(), subscriptionNo));
+        events.publishEvent(new SubscriptionChanged(caller.yosCode()));
     }
 
     /** Not transactional, so that no database connection is held during the remote call. */

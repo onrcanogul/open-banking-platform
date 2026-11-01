@@ -29,7 +29,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.oracle.OracleContainer;
 
 @SpringBootTest(properties = {"ORACLE_DISPATCHER_USER=unused", "ORACLE_DISPATCHER_PASSWORD=unused",
-        "obe.delivery.scheduler-enabled=false", "spring.kafka.listener.auto-startup=false",
+        "REDIS_PASSWORD=unused", "obe.delivery.scheduler-enabled=false", "spring.kafka.listener.auto-startup=false",
         "obe.delivery.claim-size=10", "obe.delivery.claim-lease=PT2S"})
 @Testcontainers
 class DeliveryStoreTest {

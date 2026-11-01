@@ -19,6 +19,14 @@ spring:
       # Timestamp columns have no zone and always hold UTC
       hibernate.jdbc.time_zone: UTC
       hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD}
+      # Short, because a slow Redis must not delay a subscription change
+      timeout: 500ms
+      connect-timeout: 500ms
 
 obe:
   hhs-code: "9999"
@@ -43,3 +51,7 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    redis:
+      # Redis is only a cache, so losing it does not make this service unhealthy
+      enabled: false
