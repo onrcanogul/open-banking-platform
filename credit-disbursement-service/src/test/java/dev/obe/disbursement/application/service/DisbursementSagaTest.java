@@ -19,10 +19,13 @@ import dev.obe.disbursement.application.port.out.CoreRefusedException;
 import dev.obe.disbursement.application.port.out.CoreUnreachableException;
 import dev.obe.disbursement.domain.model.Disbursement;
 import dev.obe.disbursement.domain.model.DisbursementDetails;
+import dev.obe.disbursement.domain.model.DisbursementOutboxEvent;
 import dev.obe.disbursement.domain.model.DisbursementStatus;
+import dev.obe.disbursement.domain.repository.DisbursementOutboxRepository;
 import dev.obe.disbursement.domain.repository.DisbursementRepository;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,12 +35,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.oracle.OracleContainer;
 
 @SpringBootTest(properties = {"ORACLE_BAAS_USER=unused", "ORACLE_BAAS_PASSWORD=unused",
-        "obe.saga.worker-enabled=false"})
+        "obe.saga.worker-enabled=false", "obe.outbox.relay-enabled=false",
+        "spring.kafka.listener.auto-startup=false", "spring.kafka.admin.auto-create=false"})
 @Testcontainers
 class DisbursementSagaTest {
 
@@ -60,12 +65,72 @@ class DisbursementSagaTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @MockitoSpyBean
+    private DisbursementOutboxRepository outboxRepository;
+
     @MockitoBean
     private CoreBankingClient core;
 
     @BeforeEach
     void clean() {
         repository.deleteAll();
+        outboxRepository.deleteAll();
+    }
+
+    @Test
+    void writesOneEventWhenCompleted() {
+        String number = accept(PARTNER, "100.00");
+
+        saga.advanceDue();
+
+        List<DisbursementOutboxEvent> events = outboxRepository.findAll();
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getDisbursementNo()).isEqualTo(number);
+        assertThat(events.get(0).getFinalStatus()).isEqualTo("TAMAMLANDI");
+    }
+
+    @Test
+    void writesAnEventWhenRefusedByThePreCheck() {
+        accept("UNKNOWN", "100.00");
+
+        saga.advanceDue();
+
+        assertThat(outboxRepository.findAll()).extracting(DisbursementOutboxEvent::getFinalStatus)
+                .containsExactly("BASARISIZ");
+    }
+
+    @Test
+    void writesAnEventOnlyAfterCompensationEnds() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreRefusedException("no")).when(core).transfer(anyString());
+        doThrow(new CoreUnreachableException("down", null)).doNothing().when(core).releaseLimit(anyString());
+        saga.advanceDue();
+        assertThat(outboxRepository.count()).isZero();
+
+        makeDue(number);
+        saga.advanceDue();
+
+        assertThat(outboxRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void writesNoEventWhileUncertain() {
+        accept(PARTNER, "100.00");
+        doThrow(new CoreOutcomeUnknownException("timeout", null)).when(core).transfer(anyString());
+
+        saga.advanceDue();
+
+        assertThat(outboxRepository.count()).isZero();
+    }
+
+    @Test
+    void statusStaysWhenItsEventCannotBeWritten() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new IllegalStateException("outbox unavailable")).when(outboxRepository).save(any());
+
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.MUHASEBELESTI);
     }
 
     @Test

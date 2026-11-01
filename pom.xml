@@ -26,6 +26,7 @@
         <module>event-dispatcher</module>
         <module>credit-disbursement-service</module>
         <module>mock-core-banking</module>
+        <module>mock-partner</module>
     </modules>
 
     <properties>

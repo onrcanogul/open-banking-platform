@@ -2,7 +2,9 @@ package dev.obe.disbursement.application.service;
 
 import dev.obe.disbursement.domain.exception.DisbursementNotFoundException;
 import dev.obe.disbursement.domain.model.Disbursement;
+import dev.obe.disbursement.domain.model.DisbursementOutboxEvent;
 import dev.obe.disbursement.domain.model.DisbursementStatus;
+import dev.obe.disbursement.domain.repository.DisbursementOutboxRepository;
 import dev.obe.disbursement.domain.repository.DisbursementRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,12 +30,14 @@ class DisbursementStore {
             DisbursementStatus.TELAFI_EDILIYOR, DisbursementStatus.BELIRSIZ);
 
     private final DisbursementRepository repository;
+    private final DisbursementOutboxRepository outboxRepository;
     private final int claimSize;
     private final Duration claimLease;
 
-    DisbursementStore(DisbursementRepository repository, @Value("${obe.saga.claim-size}") int claimSize,
-            @Value("${obe.saga.claim-lease}") Duration claimLease) {
+    DisbursementStore(DisbursementRepository repository, DisbursementOutboxRepository outboxRepository,
+            @Value("${obe.saga.claim-size}") int claimSize, @Value("${obe.saga.claim-lease}") Duration claimLease) {
         this.repository = repository;
+        this.outboxRepository = outboxRepository;
         this.claimSize = claimSize;
         this.claimLease = claimLease;
     }
@@ -65,12 +69,18 @@ class DisbursementStore {
     /** Stored after each step, so a worker that dies resumes from the last finished step. */
     @Transactional
     void moveTo(String disbursementNo, DisbursementStatus next) {
-        load(disbursementNo).moveTo(next, now());
+        Disbursement disbursement = load(disbursementNo);
+        Instant now = now();
+        disbursement.moveTo(next, now);
+        recordIfFinished(disbursement, now);
     }
 
     @Transactional
     void fail(String disbursementNo, String reason) {
-        load(disbursementNo).fail(reason, now());
+        Disbursement disbursement = load(disbursementNo);
+        Instant now = now();
+        disbursement.fail(reason, now);
+        recordIfFinished(disbursement, now);
     }
 
     @Transactional
@@ -80,12 +90,22 @@ class DisbursementStore {
 
     @Transactional
     void finishCompensation(String disbursementNo) {
-        load(disbursementNo).finishCompensation(now());
+        Disbursement disbursement = load(disbursementNo);
+        Instant now = now();
+        disbursement.finishCompensation(now);
+        recordIfFinished(disbursement, now);
     }
 
     @Transactional
     void markUncertain(String disbursementNo) {
         load(disbursementNo).markUncertain(now());
+    }
+
+    // In the same transaction as the status, so a finished disbursement can never miss its event
+    private void recordIfFinished(Disbursement disbursement, Instant now) {
+        if (disbursement.getStatus().isFinal()) {
+            outboxRepository.save(DisbursementOutboxEvent.finished(disbursement, now));
+        }
     }
 
     private Instant now() {

@@ -35,7 +35,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.oracle.OracleContainer;
 
 @SpringBootTest(properties = {"ORACLE_BAAS_USER=unused", "ORACLE_BAAS_PASSWORD=unused",
-        "obe.saga.worker-enabled=false"})
+        "obe.saga.worker-enabled=false", "obe.outbox.relay-enabled=false",
+        "spring.kafka.listener.auto-startup=false", "spring.kafka.admin.auto-create=false"})
 @AutoConfigureMockMvc
 @Testcontainers
 class DisbursementApiTest {
