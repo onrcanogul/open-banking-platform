@@ -11,6 +11,8 @@ services:
       ORACLE_HHS_PASSWORD: ${ORACLE_HHS_PASSWORD:?set in .env}
       ORACLE_DISPATCHER_USER: ${ORACLE_DISPATCHER_USER:?set in .env}
       ORACLE_DISPATCHER_PASSWORD: ${ORACLE_DISPATCHER_PASSWORD:?set in .env}
+      ORACLE_BAAS_USER: ${ORACLE_BAAS_USER:?set in .env}
+      ORACLE_BAAS_PASSWORD: ${ORACLE_BAAS_PASSWORD:?set in .env}
     ports:
       - "127.0.0.1:1521:1521"
     volumes:

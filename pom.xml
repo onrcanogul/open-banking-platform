@@ -24,6 +24,7 @@
         <module>mock-hhs</module>
         <module>mock-yos</module>
         <module>event-dispatcher</module>
+        <module>credit-disbursement-service</module>
     </modules>
 
     <properties>
