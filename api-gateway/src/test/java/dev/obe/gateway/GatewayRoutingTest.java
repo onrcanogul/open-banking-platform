@@ -105,7 +105,7 @@ class GatewayRoutingTest {
 
     @Test
     void doesNotExposeInternalEndpoints() throws Exception {
-        assertThat(post("/internal/reconciliation", "test-key", null).statusCode()).isEqualTo(404);
+        assertThat(post("/internal/reconciliation", "test-key", null).statusCode()).isEqualTo(401);
         assertThat(forwarded).isEmpty();
     }
 
