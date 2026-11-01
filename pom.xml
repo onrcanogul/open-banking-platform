@@ -28,6 +28,7 @@
         <module>mock-core-banking</module>
         <module>mock-partner</module>
         <module>api-gateway</module>
+        <module>identity-server</module>
     </modules>
 
     <properties>
