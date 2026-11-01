@@ -56,6 +56,8 @@ obe:
     # Claimed rows return to the queue after this long if the sender died
     claim-lease: PT30S
     concurrent-calls: 8
+    connect-timeout: PT2S
+    read-timeout: PT5S
   subscription-service-url: http://localhost:8081
   # The standard reads these addresses from the YOS definition. Stands in until a real client exists.
   listener-urls:

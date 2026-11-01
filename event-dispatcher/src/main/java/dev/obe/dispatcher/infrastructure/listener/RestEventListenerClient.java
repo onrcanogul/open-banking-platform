@@ -7,6 +7,7 @@ import dev.obe.dispatcher.domain.model.DeliveryBatch;
 import dev.obe.dispatcher.infrastructure.config.DispatcherProperties;
 import java.time.Duration;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,16 +18,15 @@ import org.springframework.web.client.RestClient;
 @Component
 class RestEventListenerClient implements EventListenerClient {
 
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
-    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
-
     private final RestClient restClient;
     private final DispatcherProperties properties;
 
-    RestEventListenerClient(RestClient.Builder builder, DispatcherProperties properties) {
+    RestEventListenerClient(RestClient.Builder builder, DispatcherProperties properties,
+            @Value("${obe.delivery.connect-timeout}") Duration connectTimeout,
+            @Value("${obe.delivery.read-timeout}") Duration readTimeout) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
-        requestFactory.setReadTimeout(READ_TIMEOUT);
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
         this.restClient = builder.requestFactory(requestFactory).build();
         this.properties = properties;
     }
