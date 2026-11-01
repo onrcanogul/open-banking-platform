@@ -1,6 +1,7 @@
 package dev.obe.subscription.api.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -59,6 +61,7 @@ class EventSubscriptionApiTest {
     private static final String UNKNOWN_TYPE = "TR.OHVPS.Business.EventSubscriptionNotFound";
     private static final String INVALID_FORMAT = "TR.OHVPS.Resource.InvalidFormat";
     private static final String NOT_FOUND = "TR.OHVPS.Resource.NotFound";
+    private static final String EXCEEDED_RATE = "TR.OHVPS.Connection.ExceededRate";
 
     private static final String HHS = "9999";
     private static final String FULL_YOS = "8001";
@@ -89,6 +92,7 @@ class EventSubscriptionApiTest {
     @BeforeEach
     void clean() {
         repository.deleteAll();
+        redisTemplate.delete(redisTemplate.keys("obe:undelivered-limit:*"));
     }
 
     @Test
@@ -306,6 +310,92 @@ class EventSubscriptionApiTest {
         ArgumentCaptor<UndeliveredWindow> window = ArgumentCaptor.forClass(UndeliveredWindow.class);
         verify(undeliveredEvents).find(eq(FULL_YOS), window.capture(), eq(2));
         assertThat(window.getValue().from()).isAfter(Instant.now().minus(3, ChronoUnit.DAYS));
+    }
+
+    @Test
+    void reportsTheLimitOnServedQueries() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+
+        mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-RateLimit-Limit", "1"))
+                .andExpect(header().string("X-RateLimit-Remaining", "0"));
+    }
+
+    @Test
+    void rejectsSecondQueryWithinThePeriod() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+        mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS)).andExpect(status().isOk());
+
+        String resetHeader = mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.errorCode").value(EXCEEDED_RATE))
+                .andExpect(header().string("X-RateLimit-Limit", "1"))
+                .andExpect(header().string("X-RateLimit-Remaining", "0"))
+                .andReturn().getResponse().getHeader("X-RateLimit-Reset");
+
+        assertThat(Long.parseLong(resetHeader)).isBetween(1L, 600L);
+    }
+
+    @Test
+    void laterPagesAreNotLimited() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+        mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS)).andExpect(status().isOk());
+
+        for (int page = 2; page <= 3; page++) {
+            mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS)
+                            .param("syfNo", String.valueOf(page)))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void limitIsCountedPerYos() throws Exception {
+        String firstSubscription = createSubscription(FULL_YOS);
+        String secondSubscription = createSubscription(HBH_ONLY_YOS);
+
+        mvc.perform(withHeaders(get(undeliveredPath(firstSubscription)), FULL_YOS)).andExpect(status().isOk());
+
+        mvc.perform(withHeaders(get(undeliveredPath(secondSubscription)), HBH_ONLY_YOS)).andExpect(status().isOk());
+    }
+
+    @Test
+    void failedQueryDoesNotUseTheAllowance() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+        when(undeliveredEvents.find(any(), any(), anyInt()))
+                .thenThrow(new IllegalStateException("dispatcher down"))
+                .thenReturn(List.of());
+
+        assertThatThrownBy(() -> mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS)));
+
+        mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS)).andExpect(status().isOk());
+    }
+
+    @Test
+    void concurrentFirstPageQueriesPassOnlyOnce() throws Exception {
+        String subscriptionNo = createSubscription(FULL_YOS);
+        int requests = 8;
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<Integer>> futures = new ArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(requests);
+        try {
+            for (int i = 0; i < requests; i++) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return mvc.perform(withHeaders(get(undeliveredPath(subscriptionNo)), FULL_YOS))
+                            .andReturn().getResponse().getStatus();
+                }));
+            }
+            start.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            for (Future<Integer> future : futures) {
+                statuses.add(future.get());
+            }
+            assertThat(statuses).containsOnlyOnce(200);
+            assertThat(statuses.stream().filter(code -> code == 429)).hasSize(requests - 1);
+        } finally {
+            pool.shutdown();
+        }
     }
 
     @Test

@@ -31,6 +31,8 @@ spring:
 obe:
   hhs-code: "9999"
   event-dispatcher-url: http://localhost:8084
+  undelivered:
+    query-interval: PT10M
   # Sample participants served by ConfiguredYosDirectory
   yos-directory:
     "8001":

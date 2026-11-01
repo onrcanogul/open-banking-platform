@@ -13,7 +13,9 @@ public enum OhvpsError {
     INVALID_FORMAT(HttpStatus.BAD_REQUEST, "TR.OHVPS.Resource.InvalidFormat",
             "Validation error", "Sema kontrolleri basarisiz"),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "TR.OHVPS.Resource.NotFound",
-            "Resource not found", "Kaynak bulunamadi");
+            "Resource not found", "Kaynak bulunamadi"),
+    EXCEEDED_RATE(HttpStatus.TOO_MANY_REQUESTS, "TR.OHVPS.Connection.ExceededRate",
+            "Exceeded rate", "Erisim sikligi limiti asimi");
 
     private final HttpStatus status;
     private final String code;

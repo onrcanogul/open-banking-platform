@@ -1,7 +1,9 @@
 package dev.obe.subscription.api.error;
 
+import dev.obe.subscription.api.RateLimitHeaders;
 import dev.obe.subscription.common.error.OhvpsError;
 import dev.obe.subscription.common.error.OhvpsException;
+import dev.obe.subscription.common.error.RateLimitExceededException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +24,16 @@ class ApiExceptionHandler {
     @ExceptionHandler(OhvpsException.class)
     ResponseEntity<ErrorResponse> handleOhvps(OhvpsException ex, HttpServletRequest request) {
         return response(ex.error(), ex.getMessage(), List.of(), request);
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    ResponseEntity<ErrorResponse> handleRateLimit(RateLimitExceededException ex, HttpServletRequest request) {
+        ErrorResponse body = response(ex.error(), ex.getMessage(), List.of(), request).getBody();
+        return ResponseEntity.status(ex.error().status())
+                .header(RateLimitHeaders.LIMIT, RateLimitHeaders.UNDELIVERED_QUERY_LIMIT)
+                .header(RateLimitHeaders.REMAINING, RateLimitHeaders.UNDELIVERED_QUERY_REMAINING)
+                .header(RateLimitHeaders.RESET, String.valueOf(ex.retryAfterSeconds()))
+                .body(body);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

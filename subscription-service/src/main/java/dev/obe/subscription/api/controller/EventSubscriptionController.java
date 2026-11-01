@@ -1,6 +1,7 @@
 package dev.obe.subscription.api.controller;
 
 import dev.obe.contract.listener.EventNotification;
+import dev.obe.subscription.api.RateLimitHeaders;
 import dev.obe.subscription.api.dto.request.CreateSubscriptionRequest;
 import dev.obe.subscription.api.dto.request.UpdateSubscriptionRequest;
 import dev.obe.subscription.api.dto.response.SubscriptionResponse;
@@ -13,6 +14,7 @@ import jakarta.validation.constraints.Min;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -61,14 +63,18 @@ class EventSubscriptionController {
     }
 
     @GetMapping("/{subscriptionNo}/iletilemeyen-olaylar")
-    EventNotification undelivered(@RequestHeader(ASPSP_CODE) String aspspCode,
+    ResponseEntity<EventNotification> undelivered(@RequestHeader(ASPSP_CODE) String aspspCode,
             @RequestHeader(TPP_CODE) String tppCode, @PathVariable String subscriptionNo,
             @RequestParam(defaultValue = "1") @Min(1) @Max(999) int syfNo,
             @RequestParam(required = false) OffsetDateTime olyZmnBslTrh,
             @RequestParam(required = false) OffsetDateTime olyZmnBtsTrh) {
         Participant caller = new Participant(aspspCode, tppCode);
-        return mapper.toNotification(caller, service.listUndelivered(caller, subscriptionNo,
+        EventNotification notification = mapper.toNotification(caller, service.listUndelivered(caller, subscriptionNo,
                 toInstant(olyZmnBslTrh), toInstant(olyZmnBtsTrh), syfNo));
+        return ResponseEntity.ok()
+                .header(RateLimitHeaders.LIMIT, RateLimitHeaders.UNDELIVERED_QUERY_LIMIT)
+                .header(RateLimitHeaders.REMAINING, RateLimitHeaders.UNDELIVERED_QUERY_REMAINING)
+                .body(notification);
     }
 
     @DeleteMapping("/{subscriptionNo}")

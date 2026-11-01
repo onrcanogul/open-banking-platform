@@ -6,9 +6,11 @@ import dev.obe.subscription.application.command.Participant;
 import dev.obe.subscription.application.command.UpdateSubscriptionCommand;
 import dev.obe.subscription.application.event.SubscriptionChanged;
 import dev.obe.subscription.application.port.out.UndeliveredEventsClient;
+import dev.obe.subscription.application.port.out.UndeliveredQueryLimiter;
 import dev.obe.subscription.application.result.SubscriptionResult;
 import dev.obe.subscription.common.error.OhvpsError;
 import dev.obe.subscription.common.error.OhvpsException;
+import dev.obe.subscription.common.error.RateLimitExceededException;
 import dev.obe.subscription.common.persistence.ConstraintViolations;
 import dev.obe.subscription.domain.model.EventSubscription;
 import dev.obe.subscription.domain.model.SubscriptionType;
@@ -27,18 +29,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EventSubscriptionService {
 
+    private static final int FIRST_PAGE = 1;
+
     private final EventSubscriptionRepository repository;
     private final SubscriptionTypeResolver typeResolver;
     private final UndeliveredEventsClient undeliveredEvents;
+    private final UndeliveredQueryLimiter queryLimiter;
     private final ApplicationEventPublisher events;
     private final String hhsCode;
 
     public EventSubscriptionService(EventSubscriptionRepository repository, SubscriptionTypeResolver typeResolver,
-            UndeliveredEventsClient undeliveredEvents, ApplicationEventPublisher events,
-            @Value("${obe.hhs-code}") String hhsCode) {
+            UndeliveredEventsClient undeliveredEvents, UndeliveredQueryLimiter queryLimiter,
+            ApplicationEventPublisher events, @Value("${obe.hhs-code}") String hhsCode) {
         this.repository = repository;
         this.typeResolver = typeResolver;
         this.undeliveredEvents = undeliveredEvents;
+        this.queryLimiter = queryLimiter;
         this.events = events;
         this.hhsCode = hhsCode;
     }
@@ -101,8 +107,24 @@ public class EventSubscriptionService {
     public List<NotificationEvent> listUndelivered(Participant caller, String subscriptionNo, Instant from, Instant to,
             int page) {
         requireThisHhs(caller);
-        findOwned(caller.yosCode(), subscriptionNo);
-        return undeliveredEvents.find(caller.yosCode(), UndeliveredWindow.of(now(), from, to), page);
+        String yosCode = caller.yosCode();
+        findOwned(yosCode, subscriptionNo);
+        // Only the first page counts, or a YOS could never read past it within the period
+        boolean limited = page == FIRST_PAGE;
+        if (limited) {
+            long waitSeconds = queryLimiter.acquire(yosCode);
+            if (waitSeconds > 0) {
+                throw new RateLimitExceededException(waitSeconds);
+            }
+        }
+        try {
+            return undeliveredEvents.find(yosCode, UndeliveredWindow.of(now(), from, to), page);
+        } catch (RuntimeException ex) {
+            if (limited) {
+                queryLimiter.release(yosCode);
+            }
+            throw ex;
+        }
     }
 
     // Answers 404 for another YOS's subscription so its existence is not revealed
