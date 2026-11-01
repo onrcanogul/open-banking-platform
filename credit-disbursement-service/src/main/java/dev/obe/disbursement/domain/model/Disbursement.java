@@ -56,6 +56,12 @@ public class Disbursement {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "next_step_at", nullable = false)
+    private Instant nextStepAt;
+
+    @Column(name = "correlation_id", length = 36, updatable = false)
+    private String correlationId;
+
     /** Makes the slower of two concurrent updates fail instead of silently overwriting the other. */
     @Version
     @Column(name = "version", nullable = false)
@@ -64,7 +70,8 @@ public class Disbursement {
     protected Disbursement() {
     }
 
-    private Disbursement(DisbursementDetails details, String idempotencyKey, String requestHash, Instant now) {
+    private Disbursement(DisbursementDetails details, String idempotencyKey, String requestHash, String correlationId,
+            Instant now) {
         this.disbursementNo = UUID.randomUUID().toString();
         this.partnerCode = details.partnerCode();
         this.idempotencyKey = idempotencyKey;
@@ -76,11 +83,18 @@ public class Disbursement {
         this.status = DisbursementStatus.ALINDI;
         this.createdAt = now;
         this.updatedAt = now;
+        this.nextStepAt = now;
+        this.correlationId = correlationId;
     }
 
     public static Disbursement create(DisbursementDetails details, String idempotencyKey, String requestHash,
-            Instant now) {
-        return new Disbursement(details, idempotencyKey, requestHash, now);
+            String correlationId, Instant now) {
+        return new Disbursement(details, idempotencyKey, requestHash, correlationId, now);
+    }
+
+    /** Hides the row from other workers until the time given, in case this worker dies mid-step. */
+    public void claimUntil(Instant leaseEnd) {
+        nextStepAt = leaseEnd;
     }
 
     public void moveTo(DisbursementStatus next, Instant now) {
@@ -131,5 +145,9 @@ public class Disbursement {
 
     public String getFailureReason() {
         return failureReason;
+    }
+
+    public String getCorrelationId() {
+        return correlationId;
     }
 }

@@ -6,6 +6,7 @@ import dev.obe.disbursement.domain.exception.IdempotencyConflictException;
 import dev.obe.disbursement.domain.model.Disbursement;
 import dev.obe.disbursement.domain.model.DisbursementDetails;
 import dev.obe.disbursement.domain.repository.DisbursementRepository;
+import dev.obe.observability.Correlation;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -36,7 +37,8 @@ public class DisbursementService {
             return repeatOf(existing.get(), requestHash, idempotencyKey);
         }
         try {
-            Disbursement created = Disbursement.create(details, idempotencyKey, requestHash, now());
+            Disbursement created = Disbursement.create(details, idempotencyKey, requestHash, Correlation.current(),
+                    now());
             return DisbursementResult.from(store.insert(created));
         } catch (DataIntegrityViolationException ex) {
             if (!isKeyViolation(ex)) {

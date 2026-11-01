@@ -1,0 +1,22 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: mock-core-banking
+
+obe:
+  # Credit limits of the sample customers
+  customer-limits:
+    C-1: 100000.00
+    C-2: 500.00
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "

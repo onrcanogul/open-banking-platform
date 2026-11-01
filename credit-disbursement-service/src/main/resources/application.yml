@@ -19,6 +19,25 @@ spring:
       # Timestamp columns have no zone and always hold UTC
       hibernate.jdbc.time_zone: UTC
       hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 2000
+            read-timeout: 5000
+
+obe:
+  core-banking-url: http://localhost:8086
+  partners:
+    PARTNER1:
+      max-amount: 50000.00
+  saga:
+    worker-enabled: true
+    poll-interval: PT1S
+    claim-size: 50
+    # Claimed rows return to the queue after this long if the worker died
+    claim-lease: PT30S
 
 management:
   endpoints:

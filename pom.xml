@@ -25,6 +25,7 @@
         <module>mock-yos</module>
         <module>event-dispatcher</module>
         <module>credit-disbursement-service</module>
+        <module>mock-core-banking</module>
     </modules>
 
     <properties>

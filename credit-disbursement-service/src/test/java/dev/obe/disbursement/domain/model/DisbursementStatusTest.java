@@ -71,7 +71,7 @@ class DisbursementStatusTest {
     }
 
     private Disbursement disbursement() {
-        return Disbursement.create(details("100.00"), "key-1", "hash", NOW);
+        return Disbursement.create(details("100.00"), "key-1", "hash", null, NOW);
     }
 
     private DisbursementDetails details(String amount) {
