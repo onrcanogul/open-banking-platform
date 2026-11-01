@@ -67,7 +67,7 @@ Spesifikasyonun açık bıraktığı yerlerde aldığımız kararlar:
 - Abonelik bulunamazsa veya başka YÖS'e aitse `404 TR.OHVPS.Resource.NotFound` döner.
 - Başlıktaki kodlar gövdedeki `katilimciBlg` ile eşleşmezse `InvalidContent` döner.
 - `DELETE` kaydı fiziksel olarak siler, böylece YÖS yeniden abone olabilir.
-- `X-TPP-Code` şimdilik doğrulanmadan kabul edilir. Gerçek kimlik doğrulama SSO aşamasında eklenecek.
+- `X-TPP-Code` doğrulanmadan kabul edilir. SSO bunu çözmez, çünkü SSO banka personeli içindir; YÖS'ün kimliği mTLS ve GEÇİT ile doğrulanır, ikisi de bu projenin kapsamı dışındadır.
 - `X-Request-ID` henüz okunmuyor, M5'teki korelasyon adımında eklenecek.
 
 Olay akışı için aldığımız kararlar:

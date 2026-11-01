@@ -10,15 +10,21 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -33,10 +39,16 @@ class LoginFlowTest {
     private static final String REDIRECT_URI = "http://localhost:5173/callback";
     private static final String VERIFIER = "a-long-random-value-that-only-the-browser-application-knows";
     private static final Pattern CSRF = Pattern.compile("name=\"_csrf\"[^>]*value=\"([^\"]+)\"");
+    private static final String SIGNING_KEY = newSigningKey();
 
     @Container
     @ServiceConnection(name = "redis")
     static GenericContainer<?> redis = new GenericContainer<>("redis:8.10.3-alpine").withExposedPorts(6379);
+
+    @DynamicPropertySource
+    static void useTheTestKey(DynamicPropertyRegistry registry) {
+        registry.add("IDENTITY_SIGNING_KEY", () -> SIGNING_KEY);
+    }
 
     @LocalServerPort
     private int port;
@@ -130,6 +142,30 @@ class LoginFlowTest {
     }
 
     @Test
+    void logoutEndsTheSession() throws Exception {
+        String idToken = JsonPath.read(exchange(code("viewer", "viewer-test"), VERIFIER).body(), "$.id_token");
+
+        HttpResponse<String> logout = get("/connect/logout?client_id=operations-ui&id_token_hint=" + idToken
+                + "&post_logout_redirect_uri=" + encode("http://localhost:5173/"));
+
+        assertThat(location(logout)).startsWith("http://localhost:5173/");
+        assertThat(location(get(authorizePath()))).contains("/login");
+    }
+
+    @Test
+    void anotherInstanceFinishesTheLoginWithTheSameKey() throws Exception {
+        String code = code("viewer", "viewer-test");
+        String keys = get("/oauth2/jwks").body();
+
+        try (ConfigurableApplicationContext second = startSecondInstance()) {
+            port = second.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+
+            assertThat(get("/oauth2/jwks").body()).isEqualTo(keys);
+            assertThat(exchange(code, VERIFIER).statusCode()).isEqualTo(200);
+        }
+    }
+
+    @Test
     void allowsTheUiOriginToCallTheTokenEndpoint() throws Exception {
         HttpResponse<String> response = preflight("http://localhost:5173");
 
@@ -141,6 +177,28 @@ class LoginFlowTest {
         HttpResponse<String> response = preflight("http://evil.example");
 
         assertThat(response.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
+    }
+
+    // Arguments, because they outrank the .env file on a developer's machine
+    private ConfigurableApplicationContext startSecondInstance() {
+        return new SpringApplicationBuilder(IdentityServerApplication.class).run(
+                "--server.port=0",
+                "--spring.data.redis.host=" + redis.getHost(),
+                "--spring.data.redis.port=" + redis.getFirstMappedPort(),
+                "--spring.data.redis.password=",
+                "--IDENTITY_VIEWER_PASSWORD=viewer-test",
+                "--IDENTITY_RECONCILER_PASSWORD=reconciler-test",
+                "--IDENTITY_SIGNING_KEY=" + SIGNING_KEY);
+    }
+
+    private static String newSigningKey() {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return Base64.getEncoder().encodeToString(generator.generateKeyPair().getPrivate().getEncoded());
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     private String accessToken(String username, String password) throws Exception {

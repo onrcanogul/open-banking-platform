@@ -32,6 +32,8 @@ spring:
 
 obe:
   ui-origin: http://localhost:5173
+  signing-key: ${IDENTITY_SIGNING_KEY}
+  authorization-time-to-live: PT1H
   users:
     viewer:
       password: ${IDENTITY_VIEWER_PASSWORD}
