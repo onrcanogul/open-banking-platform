@@ -1,0 +1,34 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  config:
+    # The working directory is the repo root in an IDE and the module with Maven
+    import: "optional:file:.env[.properties],optional:file:../.env[.properties]"
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          # Only what is listed here is reachable, so internal endpoints stay closed
+          routes:
+            - id: disbursements
+              uri: ${obe.disbursement-service-url}
+              predicates:
+                - Path=/disbursements,/disbursements/**
+
+obe:
+  disbursement-service-url: http://localhost:8085
+  partner-api-keys:
+    PARTNER1: ${GATEWAY_PARTNER1_API_KEY}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "

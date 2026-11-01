@@ -27,6 +27,7 @@
         <module>credit-disbursement-service</module>
         <module>mock-core-banking</module>
         <module>mock-partner</module>
+        <module>api-gateway</module>
     </modules>
 
     <properties>
