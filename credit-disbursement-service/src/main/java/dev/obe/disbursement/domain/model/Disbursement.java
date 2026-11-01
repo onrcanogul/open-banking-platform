@@ -2,6 +2,7 @@ package dev.obe.disbursement.domain.model;
 
 import dev.obe.disbursement.domain.exception.InvalidTransitionException;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -11,12 +12,15 @@ import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.type.NumericBooleanConverter;
 
 @Entity
 @Table(name = "disbursement")
 public class Disbursement {
 
     public static final String UNIQUE_KEY_CONSTRAINT = "UQ_DISBURSEMENT_KEY";
+
+    private static final int MAX_REASON_LENGTH = 256;
 
     @Id
     @Column(name = "disbursement_no", length = 36)
@@ -47,7 +51,7 @@ public class Disbursement {
     @Column(name = "status", length = 16, nullable = false)
     private DisbursementStatus status;
 
-    @Column(name = "failure_reason", length = 256)
+    @Column(name = "failure_reason", length = MAX_REASON_LENGTH)
     private String failureReason;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -61,6 +65,15 @@ public class Disbursement {
 
     @Column(name = "correlation_id", length = 36, updatable = false)
     private String correlationId;
+
+    /** Stored as a number, because Oracle versions before 23 have no boolean column type. */
+    @Convert(converter = NumericBooleanConverter.class)
+    @Column(name = "accounting_posted", nullable = false)
+    private boolean accountingPosted;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "uncertain_from", length = 16)
+    private DisbursementStatus uncertainFrom;
 
     /** Makes the slower of two concurrent updates fail instead of silently overwriting the other. */
     @Version
@@ -102,13 +115,37 @@ public class Disbursement {
             throw new InvalidTransitionException("Disbursement " + disbursementNo + " cannot move from " + status
                     + " to " + next);
         }
+        if (next == DisbursementStatus.MUHASEBELESTI) {
+            accountingPosted = true;
+        }
         status = next;
         updatedAt = now;
     }
 
     public void fail(String reason, Instant now) {
         moveTo(DisbursementStatus.BASARISIZ, now);
-        failureReason = reason;
+        failureReason = shorten(reason);
+    }
+
+    public void startCompensation(String reason, Instant now) {
+        moveTo(DisbursementStatus.TELAFI_EDILIYOR, now);
+        failureReason = shorten(reason);
+    }
+
+    public void finishCompensation(Instant now) {
+        moveTo(DisbursementStatus.BASARISIZ, now);
+    }
+
+    // A long message must never stop a state change, since compensation depends on saving this
+    private String shorten(String reason) {
+        return reason == null || reason.length() <= MAX_REASON_LENGTH ? reason : reason.substring(0, MAX_REASON_LENGTH);
+    }
+
+    /** Remembers the step that was running, because that is what the core must be asked about. */
+    public void markUncertain(Instant now) {
+        DisbursementStatus running = status;
+        moveTo(DisbursementStatus.BELIRSIZ, now);
+        uncertainFrom = running;
     }
 
     public String getDisbursementNo() {
@@ -149,5 +186,13 @@ public class Disbursement {
 
     public String getCorrelationId() {
         return correlationId;
+    }
+
+    public boolean isAccountingPosted() {
+        return accountingPosted;
+    }
+
+    public DisbursementStatus getUncertainFrom() {
+        return uncertainFrom;
     }
 }

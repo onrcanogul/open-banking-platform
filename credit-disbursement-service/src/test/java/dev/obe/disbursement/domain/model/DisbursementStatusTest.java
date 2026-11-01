@@ -43,10 +43,44 @@ class DisbursementStatusTest {
     }
 
     @Test
-    void uncertainCanOnlyEndOrWait() {
+    void uncertainMovesOnOrIsUndoneButNeverSimplyFails() {
         assertThat(DisbursementStatus.BELIRSIZ.canMoveTo(DisbursementStatus.TAMAMLANDI)).isTrue();
-        assertThat(DisbursementStatus.BELIRSIZ.canMoveTo(DisbursementStatus.BASARISIZ)).isTrue();
-        assertThat(DisbursementStatus.BELIRSIZ.canMoveTo(DisbursementStatus.MUHASEBELESTI)).isFalse();
+        assertThat(DisbursementStatus.BELIRSIZ.canMoveTo(DisbursementStatus.TELAFI_EDILIYOR)).isTrue();
+        assertThat(DisbursementStatus.BELIRSIZ.canMoveTo(DisbursementStatus.BASARISIZ)).isFalse();
+    }
+
+    @Test
+    void stepsAfterTheLimitMustBeUndoneRatherThanSimplyFail() {
+        assertThat(DisbursementStatus.LIMIT_AYRILDI.canMoveTo(DisbursementStatus.BASARISIZ)).isFalse();
+        assertThat(DisbursementStatus.MUHASEBELESTI.canMoveTo(DisbursementStatus.BASARISIZ)).isFalse();
+    }
+
+    @Test
+    void compensationCanOnlyEndInFailure() {
+        assertThat(DisbursementStatus.TELAFI_EDILIYOR.canMoveTo(DisbursementStatus.BASARISIZ)).isTrue();
+        assertThat(DisbursementStatus.TELAFI_EDILIYOR.canMoveTo(DisbursementStatus.TAMAMLANDI)).isFalse();
+    }
+
+    @Test
+    void remembersWhichStepIsUncertain() {
+        Disbursement disbursement = disbursement();
+        disbursement.moveTo(DisbursementStatus.ONAYLANDI, NOW);
+
+        disbursement.markUncertain(NOW);
+
+        assertThat(disbursement.getUncertainFrom()).isEqualTo(DisbursementStatus.ONAYLANDI);
+    }
+
+    @Test
+    void remembersThatAccountingWasPosted() {
+        Disbursement disbursement = disbursement();
+        disbursement.moveTo(DisbursementStatus.ONAYLANDI, NOW);
+        disbursement.moveTo(DisbursementStatus.LIMIT_AYRILDI, NOW);
+        assertThat(disbursement.isAccountingPosted()).isFalse();
+
+        disbursement.moveTo(DisbursementStatus.MUHASEBELESTI, NOW);
+
+        assertThat(disbursement.isAccountingPosted()).isTrue();
     }
 
     @Test

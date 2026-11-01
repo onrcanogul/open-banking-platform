@@ -1,6 +1,8 @@
 package dev.obe.disbursement.application.service;
 
 import dev.obe.disbursement.application.port.out.CoreBankingClient;
+import dev.obe.disbursement.application.port.out.CoreBankingClient.Step;
+import dev.obe.disbursement.application.port.out.CoreOutcomeUnknownException;
 import dev.obe.disbursement.application.port.out.CoreRefusedException;
 import dev.obe.disbursement.application.port.out.PartnerRules;
 import dev.obe.disbursement.domain.model.Disbursement;
@@ -15,7 +17,9 @@ import org.springframework.stereotype.Service;
 
 /**
  * Walks each disbursement through its steps. The status says which step is next, so this same code
- * starts a new disbursement and resumes one that a dead worker left halfway.
+ * starts a new disbursement and resumes one that a dead worker left halfway. A refusal after earlier
+ * steps is undone by compensation. A call with an unknown outcome stops the walk until the core has
+ * been asked, because going on could pay twice and undoing could give money away.
  */
 @Service
 public class DisbursementSaga {
@@ -57,6 +61,10 @@ public class DisbursementSaga {
             runStep(disbursement);
             disbursement = store.load(disbursementNo);
             log.info("Disbursement {} is now {}", disbursementNo, disbursement.getStatus());
+            if (disbursement.getStatus() == DisbursementStatus.BELIRSIZ) {
+                // Asked again after the lease, which gives a late request time to finish
+                return;
+            }
         }
     }
 
@@ -65,14 +73,11 @@ public class DisbursementSaga {
         switch (disbursement.getStatus()) {
             case ALINDI -> preCheck(disbursement);
             case ONAYLANDI -> reserveLimit(disbursement);
-            case LIMIT_AYRILDI -> {
-                core.postAccounting(number);
-                store.moveTo(number, DisbursementStatus.MUHASEBELESTI);
-            }
-            case MUHASEBELESTI -> {
-                core.transfer(number);
-                store.moveTo(number, DisbursementStatus.TAMAMLANDI);
-            }
+            case LIMIT_AYRILDI -> callCore(number, () -> core.postAccounting(number),
+                    DisbursementStatus.MUHASEBELESTI);
+            case MUHASEBELESTI -> callCore(number, () -> core.transfer(number), DisbursementStatus.TAMAMLANDI);
+            case TELAFI_EDILIYOR -> compensate(disbursement);
+            case BELIRSIZ -> resolveUncertain(disbursement);
             default -> throw new IllegalStateException("No step for status " + disbursement.getStatus());
         }
     }
@@ -97,6 +102,62 @@ public class DisbursementSaga {
         } catch (CoreRefusedException ex) {
             // Nothing has happened yet, so there is nothing to undo
             store.fail(number, "Credit limit is not enough");
+        } catch (CoreOutcomeUnknownException ex) {
+            store.markUncertain(number);
         }
+    }
+
+    /** A step that can be refused after earlier steps took effect. */
+    private void callCore(String number, Runnable call, DisbursementStatus next) {
+        try {
+            call.run();
+            store.moveTo(number, next);
+        } catch (CoreRefusedException ex) {
+            store.startCompensation(number, "Refused by the core: " + ex.getMessage());
+        } catch (CoreOutcomeUnknownException ex) {
+            store.markUncertain(number);
+        }
+    }
+
+    /**
+     * Undoes finished steps, newest first. Both calls are safe to repeat, so if this fails halfway the
+     * row stays in this status and runs again. The original ledger entry stays, with an opposite one.
+     */
+    private void compensate(Disbursement disbursement) {
+        String number = disbursement.getDisbursementNo();
+        if (disbursement.isAccountingPosted()) {
+            core.reverseAccounting(number);
+        }
+        core.releaseLimit(number);
+        store.finishCompensation(number);
+    }
+
+    /** Throws if the core cannot answer either, leaving the row uncertain. It never guesses. */
+    private void resolveUncertain(Disbursement disbursement) {
+        String number = disbursement.getDisbursementNo();
+        DisbursementStatus running = disbursement.getUncertainFrom();
+        if (core.isCompleted(stepOf(running), number)) {
+            store.moveTo(number, statusAfter(running));
+        } else {
+            store.startCompensation(number, "The core did not complete the " + stepOf(running) + " step");
+        }
+    }
+
+    private Step stepOf(DisbursementStatus running) {
+        return switch (running) {
+            case ONAYLANDI -> Step.LIMIT;
+            case LIMIT_AYRILDI -> Step.ACCOUNTING;
+            case MUHASEBELESTI -> Step.TRANSFER;
+            default -> throw new IllegalStateException("No core step for status " + running);
+        };
+    }
+
+    private DisbursementStatus statusAfter(DisbursementStatus running) {
+        return switch (running) {
+            case ONAYLANDI -> DisbursementStatus.LIMIT_AYRILDI;
+            case LIMIT_AYRILDI -> DisbursementStatus.MUHASEBELESTI;
+            case MUHASEBELESTI -> DisbursementStatus.TAMAMLANDI;
+            default -> throw new IllegalStateException("No step after status " + running);
+        };
     }
 }

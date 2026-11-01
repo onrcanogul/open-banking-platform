@@ -17,7 +17,11 @@ public class CoreLedger {
 
     private final Map<String, BigDecimal> availableLimits;
     private final Map<String, Boolean> completedOperations = new ConcurrentHashMap<>();
+    private final Map<String, Reservation> reservations = new ConcurrentHashMap<>();
     private final List<String> history = new CopyOnWriteArrayList<>();
+
+    private record Reservation(String customerNo, BigDecimal amount) {
+    }
 
     public CoreLedger(CoreProperties properties) {
         this.availableLimits = new ConcurrentHashMap<>(properties.customerLimits());
@@ -31,6 +35,18 @@ public class CoreLedger {
                 return false;
             }
             availableLimits.put(customerNo, available.subtract(amount));
+            reservations.put(operationId, new Reservation(customerNo, amount));
+            return true;
+        });
+    }
+
+    /** Gives a reserved amount back. With no reservation there is nothing to do, and that is fine. */
+    public synchronized void releaseLimit(String operationId) {
+        once("limit-release:" + operationId, () -> {
+            Reservation reservation = reservations.get(operationId);
+            if (reservation != null) {
+                availableLimits.merge(reservation.customerNo(), reservation.amount(), BigDecimal::add);
+            }
             return true;
         });
     }
@@ -39,8 +55,18 @@ public class CoreLedger {
         once("accounting:" + operationId, () -> true);
     }
 
+    /** Adds an opposite entry. The original stays in the ledger, since entries are never deleted. */
+    public synchronized void reverseAccounting(String operationId) {
+        once("accounting-reversal:" + operationId, () -> true);
+    }
+
     public synchronized void transfer(String operationId) {
         once("transfer:" + operationId, () -> true);
+    }
+
+    /** Answers whether an operation really took effect, for a caller that never got a reply. */
+    public boolean isCompleted(String step, String operationId) {
+        return Boolean.TRUE.equals(completedOperations.get(step + ":" + operationId));
     }
 
     public BigDecimal availableLimit(String customerNo) {

@@ -6,6 +6,8 @@ spring:
     name: mock-core-banking
 
 obe:
+  # Longer than the caller's read timeout
+  fault-hang-time: PT8S
   # Credit limits of the sample customers
   customer-limits:
     C-1: 100000.00

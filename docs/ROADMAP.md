@@ -141,6 +141,14 @@ denemesi bitenler İletilemeyen Olaylar'dan okunuyor. Bu senaryo otomatik test o
 Kamuya açık bir standardı olmadığı için kendi tasarımımız: kullandırım talebi, ön kontrol, limit rezervasyonu,
 muhasebe kaydı, hesaba aktarım, bildirim.
 
+Aldığımız kararlar:
+
+- Saga orkestrasyonla yönetilir, çekirdek çağrıları REST'tir. Her adımdan sonra durum kaydedilir.
+- Çekirdek çağrısının üç sonucu ayrı ele alınır: Red telafiye gider, bağlanamama yeniden denenir, bilinmeyen
+  sonuç `BELIRSIZ` olur ve çekirdeğe sorulur. Saga asla tahmin yürütmez.
+- Telafi yeni kayıt atar, eski kaydı silmez. Telafi adımları tekrar çalışabilir.
+- `BELIRSIZ` kayıt çekirdek cevap verene kadar bekler, deneme sınırı henüz yok.
+
 - **Sen yaz:** Kullandırım durum makinesi, hata halinde telafi adımları, `Idempotency-Key` kontrolü.
 - **Kavra:** Saga ve dağıtık transaction farkı, para tutarlarında `BigDecimal`, Spring Batch gün sonu mutabakatı,
   Spring Cloud Gateway ve servisler arası çağrılar.

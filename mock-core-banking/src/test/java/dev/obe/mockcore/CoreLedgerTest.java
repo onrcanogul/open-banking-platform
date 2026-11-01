@@ -41,6 +41,41 @@ class CoreLedgerTest {
     }
 
     @Test
+    void releaseGivesTheReservedAmountBack() {
+        ledger.reserveLimit("op-1", "C-1", new BigDecimal("400.00"));
+
+        ledger.releaseLimit("op-1");
+
+        assertThat(ledger.availableLimit("C-1")).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    void repeatedReleaseGivesBackOnce() {
+        ledger.reserveLimit("op-1", "C-1", new BigDecimal("400.00"));
+
+        ledger.releaseLimit("op-1");
+        ledger.releaseLimit("op-1");
+
+        assertThat(ledger.availableLimit("C-1")).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    void releasingWithoutAReservationDoesNothing() {
+        ledger.releaseLimit("op-1");
+
+        assertThat(ledger.availableLimit("C-1")).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    void reportsWhetherAnOperationTookEffect() {
+        assertThat(ledger.isCompleted("transfer", "op-1")).isFalse();
+
+        ledger.transfer("op-1");
+
+        assertThat(ledger.isCompleted("transfer", "op-1")).isTrue();
+    }
+
+    @Test
     void unknownCustomerHasNoLimit() {
         assertThat(ledger.reserveLimit("op-1", "C-9", new BigDecimal("1.00"))).isFalse();
     }

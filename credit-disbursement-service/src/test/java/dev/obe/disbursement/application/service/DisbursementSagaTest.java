@@ -10,9 +10,13 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import dev.obe.disbursement.application.port.out.CoreBankingClient;
+import dev.obe.disbursement.application.port.out.CoreBankingClient.Step;
+import dev.obe.disbursement.application.port.out.CoreOutcomeUnknownException;
 import dev.obe.disbursement.application.port.out.CoreRefusedException;
+import dev.obe.disbursement.application.port.out.CoreUnreachableException;
 import dev.obe.disbursement.domain.model.Disbursement;
 import dev.obe.disbursement.domain.model.DisbursementDetails;
 import dev.obe.disbursement.domain.model.DisbursementStatus;
@@ -145,6 +149,156 @@ class DisbursementSagaTest {
         assertThat(saga.advanceDue()).isZero();
 
         assertThat(statusOf(number)).isEqualTo(DisbursementStatus.LIMIT_AYRILDI);
+    }
+
+    @Test
+    void undoesTheLimitWhenAccountingIsRefused() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreRefusedException("no")).when(core).postAccounting(anyString());
+
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.BASARISIZ);
+        verify(core).releaseLimit(number);
+        verify(core, never()).reverseAccounting(anyString());
+        verify(core, never()).transfer(anyString());
+    }
+
+    @Test
+    void undoesEverythingNewestFirstWhenTransferIsRefused() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreRefusedException("account closed")).when(core).transfer(anyString());
+
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.BASARISIZ);
+        assertThat(disbursement(number).getFailureReason()).contains("account closed");
+        InOrder order = inOrder(core);
+        order.verify(core).reverseAccounting(number);
+        order.verify(core).releaseLimit(number);
+    }
+
+    @Test
+    void aLongRefusalMessageDoesNotStopCompensation() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreRefusedException("x".repeat(1000))).when(core).postAccounting(anyString());
+
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.BASARISIZ);
+        verify(core).releaseLimit(number);
+    }
+
+    @Test
+    void finishesCompensationAfterItFailedHalfway() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreRefusedException("no")).when(core).transfer(anyString());
+        doThrow(new CoreUnreachableException("down", null)).doNothing().when(core).releaseLimit(anyString());
+        saga.advanceDue();
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.TELAFI_EDILIYOR);
+
+        makeDue(number);
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.BASARISIZ);
+        verify(core, times(2)).reverseAccounting(number);
+        verify(core, times(2)).releaseLimit(number);
+    }
+
+    @Test
+    void unreachableCoreIsRetriedWithoutGoingUncertain() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreUnreachableException("down", null)).when(core).postAccounting(anyString());
+
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.LIMIT_AYRILDI);
+    }
+
+    @Test
+    void unknownOutcomeStopsTheWalk() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreOutcomeUnknownException("timeout", null)).when(core).transfer(anyString());
+
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.BELIRSIZ);
+        verify(core, never()).reverseAccounting(anyString());
+        verify(core, never()).releaseLimit(anyString());
+    }
+
+    @Test
+    void unknownOutcomeThatTookEffectCompletes() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreOutcomeUnknownException("timeout", null)).when(core).transfer(anyString());
+        when(core.isCompleted(Step.TRANSFER, number)).thenReturn(true);
+        saga.advanceDue();
+
+        makeDue(number);
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.TAMAMLANDI);
+        verify(core, times(1)).transfer(number);
+        verify(core, never()).releaseLimit(anyString());
+    }
+
+    @Test
+    void unknownOutcomeThatDidNotTakeEffectIsUndone() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreOutcomeUnknownException("timeout", null)).when(core).transfer(anyString());
+        when(core.isCompleted(Step.TRANSFER, number)).thenReturn(false);
+        saga.advanceDue();
+
+        makeDue(number);
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.BASARISIZ);
+        verify(core).reverseAccounting(number);
+        verify(core).releaseLimit(number);
+    }
+
+    @Test
+    void staysUncertainWhileTheCoreCannotAnswer() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreOutcomeUnknownException("timeout", null)).when(core).transfer(anyString());
+        when(core.isCompleted(Step.TRANSFER, number)).thenThrow(new CoreUnreachableException("down", null));
+        saga.advanceDue();
+
+        makeDue(number);
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.BELIRSIZ);
+        verify(core, never()).releaseLimit(anyString());
+    }
+
+    @Test
+    void asksAboutTheStepThatWasRunning() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreOutcomeUnknownException("timeout", null)).when(core).postAccounting(anyString());
+        when(core.isCompleted(Step.ACCOUNTING, number)).thenReturn(true);
+        saga.advanceDue();
+
+        makeDue(number);
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.TAMAMLANDI);
+        verify(core, times(1)).postAccounting(number);
+        verify(core).transfer(number);
+    }
+
+    @Test
+    void unknownLimitStepThatDidNotTakeEffectEndsInFailure() {
+        String number = accept(PARTNER, "100.00");
+        doThrow(new CoreOutcomeUnknownException("timeout", null)).when(core)
+                .reserveLimit(anyString(), anyString(), any());
+        when(core.isCompleted(Step.LIMIT, number)).thenReturn(false);
+        saga.advanceDue();
+
+        makeDue(number);
+        saga.advanceDue();
+
+        assertThat(statusOf(number)).isEqualTo(DisbursementStatus.BASARISIZ);
+        verify(core, never()).reverseAccounting(anyString());
     }
 
     @Test

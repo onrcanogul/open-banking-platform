@@ -24,7 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 class DisbursementStore {
 
     private static final Set<DisbursementStatus> WORKABLE = Set.of(DisbursementStatus.ALINDI,
-            DisbursementStatus.ONAYLANDI, DisbursementStatus.LIMIT_AYRILDI, DisbursementStatus.MUHASEBELESTI);
+            DisbursementStatus.ONAYLANDI, DisbursementStatus.LIMIT_AYRILDI, DisbursementStatus.MUHASEBELESTI,
+            DisbursementStatus.TELAFI_EDILIYOR, DisbursementStatus.BELIRSIZ);
 
     private final DisbursementRepository repository;
     private final int claimSize;
@@ -70,6 +71,21 @@ class DisbursementStore {
     @Transactional
     void fail(String disbursementNo, String reason) {
         load(disbursementNo).fail(reason, now());
+    }
+
+    @Transactional
+    void startCompensation(String disbursementNo, String reason) {
+        load(disbursementNo).startCompensation(reason, now());
+    }
+
+    @Transactional
+    void finishCompensation(String disbursementNo) {
+        load(disbursementNo).finishCompensation(now());
+    }
+
+    @Transactional
+    void markUncertain(String disbursementNo) {
+        load(disbursementNo).markUncertain(now());
     }
 
     private Instant now() {
