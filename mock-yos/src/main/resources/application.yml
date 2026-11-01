@@ -5,6 +5,9 @@ spring:
   application:
     name: mock-yos
 
+obe:
+  hhs-url: http://localhost:8082
+
 management:
   endpoints:
     web:

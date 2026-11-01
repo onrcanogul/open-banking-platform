@@ -1,9 +1,12 @@
 package dev.obe.mockyos.api.controller;
 
+import dev.obe.contract.event.EventType;
 import dev.obe.contract.listener.EventNotification;
+import dev.obe.mockyos.application.AuthorizationCodeCollector;
 import dev.obe.mockyos.application.OutageSwitch;
 import dev.obe.mockyos.application.ReceivedEventStore;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -21,10 +24,12 @@ class EventListenerController {
 
     private final ReceivedEventStore store;
     private final OutageSwitch outage;
+    private final AuthorizationCodeCollector codeCollector;
 
-    EventListenerController(ReceivedEventStore store, OutageSwitch outage) {
+    EventListenerController(ReceivedEventStore store, OutageSwitch outage, AuthorizationCodeCollector codeCollector) {
         this.store = store;
         this.outage = outage;
+        this.codeCollector = codeCollector;
     }
 
     @PostMapping("/internal/outage")
@@ -41,9 +46,18 @@ class EventListenerController {
             return ResponseEntity.badRequest().build();
         }
         store.add(request);
-        request.olaylar().forEach(event -> log.info("Received {} {} {}", event.olayTipi(), event.kaynakTipi(),
-                event.kaynakNo()));
+        for (EventNotification.Event event : request.olaylar()) {
+            log.info("Received {} {} {}", event.olayTipi(), event.kaynakTipi(), event.kaynakNo());
+            if (event.olayTipi() == EventType.AYRIK_GKD_BASARILI) {
+                codeCollector.collect(request.katilimciBlg().yosKod(), event.kaynakTipi(), event.kaynakNo());
+            }
+        }
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
+    }
+
+    @GetMapping("/internal/authorization-codes")
+    Map<String, String> authorizationCodes() {
+        return codeCollector.collected();
     }
 
     @GetMapping("/internal/received")

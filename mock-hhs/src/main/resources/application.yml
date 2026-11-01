@@ -32,6 +32,8 @@ spring:
         delivery.timeout.ms: 10000
 
 obe:
+  consent:
+    authorization-code-lifetime: PT5M
   outbox:
     relay-enabled: true
     poll-interval: PT1S

@@ -1,9 +1,13 @@
 package dev.obe.mockyos.api.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.obe.contract.event.ResourceType;
+import dev.obe.mockyos.application.AuthorizationCodeCollector;
 import dev.obe.mockyos.application.OutageSwitch;
 import dev.obe.mockyos.application.ReceivedEventStore;
 import java.util.Collections;
@@ -13,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
@@ -32,6 +37,9 @@ class EventListenerControllerTest {
     @Autowired
     private OutageSwitch outage;
 
+    @MockitoBean
+    private AuthorizationCodeCollector codeCollector;
+
     @BeforeEach
     void clean() {
         store.clear();
@@ -45,6 +53,26 @@ class EventListenerControllerTest {
 
         assertThat(store.all()).hasSize(1);
         assertThat(store.all().get(0).olaylar().get(0).kaynakNo()).isEqualTo("ODM-1");
+    }
+
+    @Test
+    void collectsCodeAfterSeparateAuthenticationSucceeds() throws Exception {
+        String event = """
+                {"olayNo":"2","olayZamani":"2026-10-31T19:20:28.093Z","olayTipi":"AYRIK_GKD_BASARILI",
+                 "kaynakTipi":"ODEME_EMRI_RIZASI","kaynakNo":"consent-1"}""";
+
+        mvc.perform(post("/olay-dinleme").contentType(MediaType.APPLICATION_JSON).content(bodyOf(event)))
+                .andExpect(status().isAccepted());
+
+        verify(codeCollector).collect("8001", ResourceType.ODEME_EMRI_RIZASI, "consent-1");
+    }
+
+    @Test
+    void doesNotCollectCodeForOtherEvents() throws Exception {
+        mvc.perform(post("/olay-dinleme").contentType(MediaType.APPLICATION_JSON).content(body(1)))
+                .andExpect(status().isAccepted());
+
+        verifyNoInteractions(codeCollector);
     }
 
     @Test
@@ -66,7 +94,10 @@ class EventListenerControllerTest {
     }
 
     private String body(int events) {
-        String list = String.join(",", Collections.nCopies(events, EVENT));
-        return "{\"katilimciBlg\":{\"hhsKod\":\"9999\",\"yosKod\":\"8001\"},\"olaylar\":[" + list + "]}";
+        return bodyOf(String.join(",", Collections.nCopies(events, EVENT)));
+    }
+
+    private String bodyOf(String events) {
+        return "{\"katilimciBlg\":{\"hhsKod\":\"9999\",\"yosKod\":\"8001\"},\"olaylar\":[" + events + "]}";
     }
 }

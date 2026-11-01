@@ -63,6 +63,11 @@ public class OutboxEvent {
                 order.getOrderNo(), occurredAt);
     }
 
+    public static OutboxEvent consentEvent(Consent consent, EventType eventType, Instant occurredAt) {
+        return new OutboxEvent(consent.getYosCode(), eventType, consent.getType().resourceType(),
+                consent.getConsentNo(), occurredAt);
+    }
+
     public void markPublished(Instant now) {
         status = OutboxStatus.PUBLISHED;
         publishedAt = now;

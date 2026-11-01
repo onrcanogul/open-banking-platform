@@ -88,6 +88,11 @@ Olay akışı için aldığımız kararlar:
 - Veri yoksa `iletilemeyen-olaylar` `200` ve boş `olaylar` listesi döner. Standart "boş gövde" diyor, ama
   `katilimciBlg` zorunlu olduğu için bu yorum seçildi.
 - Aynı kaynak için yeni iletilemeyen olay gelince eskisi `SUPERSEDED` olur.
+- `mock-hhs` rıza modelinde yalnızca `B`, `Y`, `I` durumları var. Erişim belirteci aşaması olmadığı için `K`,
+  `E` ve `S` kapsam dışı.
+- `yetKod` 5 dakika geçerli. Başka YÖS, yanlış rıza tipi, süresi dolmuş kod ve iptal edilmiş rıza aynı `404`
+  cevabını alır.
+- Rıza iptali olayı yalnızca hesap bilgisi rızası için üretilir. Ödeme emri rızası için standartta bu olay yok.
 
 Servislerin paket yapısı, bağımlılıklar yalnızca içeriye doğru akacak şekilde:
 
