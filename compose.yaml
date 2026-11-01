@@ -136,7 +136,32 @@ services:
     depends_on:
       - bamboo
 
+  # Started only with: docker compose --profile ci up -d jenkins
+  jenkins:
+    image: obe/jenkins:2.580.2
+    build: infra/jenkins
+    profiles: [ci]
+    environment:
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?set in .env}
+      CASC_JENKINS_CONFIG: /usr/share/jenkins/ref/jenkins.yaml
+      JAVA_OPTS: >-
+        -Djenkins.install.runSetupWizard=false
+        -Dhudson.plugins.git.GitSCM.ALLOW_LOCAL_CHECKOUT=true
+      # Test containers run beside this one, so their ports open on the host
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    ports:
+      # 8080 on the host belongs to the gateway
+      - "127.0.0.1:8096:8080"
+    volumes:
+      - jenkins-data:/var/jenkins_home
+      # Only the history, so the local .env stays out of this container
+      - ./.git:/repo.git:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
 volumes:
+  jenkins-data:
   bamboo-data:
   bamboo-agent-data:
   prometheus-data:
