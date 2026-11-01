@@ -104,7 +104,41 @@ services:
     depends_on:
       - prometheus
 
+  # Started only with: docker compose --profile ci up -d bamboo
+  bamboo:
+    image: atlassian/bamboo:12.1.10
+    profiles: [ci]
+    environment:
+      JVM_MAXIMUM_MEMORY: 2g
+    ports:
+      # 8085 on the host belongs to the disbursement service
+      - "127.0.0.1:8095:8085"
+    volumes:
+      - bamboo-data:/var/atlassian/application-data/bamboo
+      # Only the history, so the local .env stays out of this container
+      - ./.git:/repo.git:ro
+
+  # Needs a licensed server, so it starts after the key is entered
+  bamboo-agent:
+    image: obe/bamboo-agent:12.1.10
+    build: infra/bamboo/agent
+    profiles: [ci]
+    environment:
+      BAMBOO_SERVER: http://bamboo:8085
+      # Test containers run beside this one, so their ports open on the host
+      TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal
+    volumes:
+      - bamboo-agent-data:/var/atlassian/application-data/bamboo-agent
+      - ./.git:/repo.git:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      - bamboo
+
 volumes:
+  bamboo-data:
+  bamboo-agent-data:
   prometheus-data:
   grafana-data:
   oracle-data:
