@@ -18,17 +18,17 @@
     <name>obe-parent</name>
 
     <modules>
-        <module>event-contract</module>
-        <module>observability-support</module>
-        <module>subscription-service</module>
-        <module>mock-hhs</module>
-        <module>mock-yos</module>
-        <module>event-dispatcher</module>
-        <module>credit-disbursement-service</module>
-        <module>mock-core-banking</module>
-        <module>mock-partner</module>
-        <module>api-gateway</module>
-        <module>identity-server</module>
+        <module>libs/event-contract</module>
+        <module>libs/observability-support</module>
+        <module>services/subscription-service</module>
+        <module>services/mock-hhs</module>
+        <module>services/mock-yos</module>
+        <module>services/event-dispatcher</module>
+        <module>services/credit-disbursement-service</module>
+        <module>services/mock-core-banking</module>
+        <module>services/mock-partner</module>
+        <module>services/api-gateway</module>
+        <module>services/identity-server</module>
     </modules>
 
     <properties>

@@ -1,0 +1,98 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: event-dispatcher
+  config:
+    # The working directory is the repo root in an IDE and the module with Maven
+    import: "optional:file:.env[.properties],optional:file:../../.env[.properties]"
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+    username: ${ORACLE_DISPATCHER_USER}
+    password: ${ORACLE_DISPATCHER_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      # Timestamp columns have no zone and always hold UTC
+      hibernate.jdbc.time_zone: UTC
+      hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD}
+      # Short, because the cache must not slow things down when Redis is unwell
+      timeout: 500ms
+      connect-timeout: 500ms
+  batch:
+    job:
+      # Jobs start on their schedule, not when the service starts
+      enabled: false
+    jdbc:
+      # Flyway owns the tables
+      initialize-schema: never
+  kafka:
+    bootstrap-servers: localhost:9092
+    listener:
+      type: batch
+    consumer:
+      group-id: event-dispatcher
+      auto-offset-reset: earliest
+      max-poll-records: 500
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        # An unreadable message becomes a null value instead of blocking the partition forever
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        spring.json.value.default.type: dev.obe.contract.event.NotificationEvent
+        spring.json.use.type.headers: false
+
+obe:
+  hhs-code: "9999"
+  redelivery-interval: PT5S
+  mock-hhs-url: http://localhost:8082
+  batch:
+    scheduler-enabled: true
+    archive:
+      cron: "0 0 2 * * *"
+      retention: P30D
+      chunk-size: 500
+    reconciliation:
+      cron: "0 0 3 * * *"
+      chunk-size: 100
+      # Skips events too new to have reached this service, which are not missing
+      settle-time: PT10M
+  subscription-cache:
+    # Short, because events filtered by a stale entry are not recovered if an eviction fails
+    ttl: PT1M
+    not-subscribed-ttl: PT30S
+  delivery:
+    scheduler-enabled: true
+    poll-interval: PT1S
+    claim-size: 500
+    # Claimed rows return to the queue after this long if the sender died
+    claim-lease: PT30S
+    concurrent-calls: 8
+    connect-timeout: PT2S
+    read-timeout: PT5S
+  subscription-service-url: http://localhost:8081
+  # The standard reads these addresses from the YOS definition. Stands in until a real client exists.
+  listener-urls:
+    "8001": http://localhost:8083
+    "8002": http://localhost:8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  health:
+    redis:
+      # Redis is only a cache here, so losing it does not make this service unhealthy
+      enabled: false
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "

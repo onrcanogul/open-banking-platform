@@ -6,7 +6,5 @@
 **/target
 **/node_modules
 **/dist
-infra
-k8s
-docs
-operations-ui
+deploy
+frontend

@@ -1,0 +1,63 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: subscription-service
+  config:
+    # The working directory is the repo root in an IDE and the module with Maven
+    import: "optional:file:.env[.properties],optional:file:../../.env[.properties]"
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+    username: ${ORACLE_APP_USER}
+    password: ${ORACLE_APP_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      # Timestamp columns have no zone and always hold UTC
+      hibernate.jdbc.time_zone: UTC
+      hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${REDIS_PASSWORD}
+      # Short, because a slow Redis must not delay a subscription change
+      timeout: 500ms
+      connect-timeout: 500ms
+
+obe:
+  hhs-code: "9999"
+  event-dispatcher-url: http://localhost:8084
+  undelivered:
+    query-interval: PT10M
+  # Sample participants served by ConfiguredYosDirectory
+  yos-directory:
+    "8001":
+      roles: [OBH, HBH]
+      listener-api-provided: true
+    "8002":
+      roles: [HBH]
+      listener-api-provided: true
+    "8003":
+      roles: [OBH, HBH]
+      listener-api-provided: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: always
+  health:
+    redis:
+      # Redis is only a cache, so losing it does not make this service unhealthy
+      enabled: false
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "

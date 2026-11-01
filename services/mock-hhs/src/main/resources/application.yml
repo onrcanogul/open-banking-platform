@@ -1,0 +1,58 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: mock-hhs
+  config:
+    # The working directory is the repo root in an IDE and the module with Maven
+    import: "optional:file:.env[.properties],optional:file:../../.env[.properties]"
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+    username: ${ORACLE_HHS_USER}
+    password: ${ORACLE_HHS_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      # Timestamp columns have no zone and always hold UTC
+      hibernate.jdbc.time_zone: UTC
+      hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      properties:
+        # Consumers read the contract type, not a class name from this service
+        spring.json.add.type.headers: false
+        # Fails within the publisher's wait so a broker outage cannot hold the transaction open
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
+
+obe:
+  consent:
+    authorization-code-lifetime: PT5M
+  outbox:
+    relay-enabled: true
+    poll-interval: PT1S
+    batch-size: 100
+    # Longer than delivery.timeout.ms, so the broker client reports the real failure first
+    send-timeout: PT15S
+    # Longer than reconciliation looks back, or it would report deleted events as unknown
+    retention: P7D
+    cleanup-cron: "0 30 2 * * *"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  pattern:
+    correlation: "[%X{correlationId:-}] "

@@ -20,7 +20,7 @@ pipeline {
 
         stage('Operations UI') {
             steps {
-                dir('operations-ui') {
+                dir('frontend/operations-ui') {
                     sh 'npm ci'
                     sh 'npm test'
                     sh 'npm run build'

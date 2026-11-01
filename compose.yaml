@@ -17,7 +17,7 @@ services:
       - "127.0.0.1:1521:1521"
     volumes:
       - oracle-data:/opt/oracle/oradata
-      - ./infra/oracle/init:/container-entrypoint-initdb.d:ro
+      - ./deploy/oracle/init:/container-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh"]
       interval: 10s
@@ -82,7 +82,7 @@ services:
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     extra_hosts:
       # The services run on the host, not on the compose network
@@ -99,8 +99,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
@@ -122,7 +122,7 @@ services:
   # Needs a licensed server, so it starts after the key is entered
   bamboo-agent:
     image: obe/bamboo-agent:12.1.10
-    build: infra/bamboo/agent
+    build: deploy/bamboo/agent
     profiles: [ci]
     environment:
       BAMBOO_SERVER: http://bamboo:8085
@@ -140,7 +140,7 @@ services:
   # Started only with: docker compose --profile ci up -d jenkins
   jenkins:
     image: obe/jenkins:2.580.2
-    build: infra/jenkins
+    build: deploy/jenkins
     profiles: [ci]
     environment:
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?set in .env}

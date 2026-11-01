@@ -38,7 +38,7 @@ Operations UI:
     - script:
         interpreter: /bin/sh
         scripts:
-          - cd operations-ui
+          - cd frontend/operations-ui
           - npm ci
           - npm test
           - npm run build
